@@ -7,9 +7,7 @@ import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 import pydrake.systems.framework
 
-import compatible_clf_cbf.clf as clf
-import compatible_clf_cbf.cbf as cbf
-import compatible_clf_cbf.utils as utils
+import compatible_clf_union_cbf.utils as utils
 
 
 class ClfCbfController(pydrake.systems.framework.LeafSystem):

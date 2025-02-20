@@ -1,39 +1,34 @@
 import dataclasses
 from typing import Dict, List, Optional, Tuple, Union
 from typing_extensions import Self
-import itertools
 import numpy as np
+import itertools
 
 import pydrake.symbolic as sym
 import pydrake.solvers as solvers
 
 
-def system_linearization(f: np.ndarray, g: np.ndarray, states: np.ndarray, eq_point: tuple)->Tuple:
+def truth_table(n: int) -> np.ndarray:
     """
-    This function linearize a non-linear system near the equilibrium point specified by eq_Point.
-    input f and g specifies the nonlinear system x_dot = f(x)+g(x)u, they should be arrays of sym.Polinomials,
-    input eq_point specifies the equilibrium point, this should be a tuple of (x_eq, u_eq).
-    the output is a Tuple (A, B), which specifies the linearized system x_dot = Ax + Bu. 
+    Given n, return the truth table of n variables.
+    We use this function to generate the 0-1 vectors for all
+    possible disjoint subsets of the union of a given set of
+    cbfs. The 0-1 vector identifies wich cbf is activated and
+    which is not in a subset.
+    For example, given a set of 3 cbfs, the output
+    should be:
+    [[0, 0, 0],
+     [1, 0, 0],
+     [0, 1, 0],
+     [1, 1, 0],
+     [0, 0, 1],
+     [1, 0, 1],
+     [0, 1, 1],
+     [1, 1, 1]]
     """
-    assert f.shape[0] == g.shape[0], "demention of f(x) and demention of g(x)u should be the same!"
-    assert f.shape[0] == states.shape[0], "demention of f(x) should be the same as states"
-    
-    x = states
-    u = sym.MakeVectorContinuousVariable(g.shape[1], "u")
-    x_eq = eq_point[0]
-    u_eq = eq_point[1]
-
-    gu = np.dot(g, u)
-    Fxu = f + gu
-    substitution = {x[i]:x_eq[i] for i in range(len(x_eq))}
-    substitution.update({u[i]:u_eq[i] for i in range(len(u_eq))})
-
-    A_symb = sym.Jacobian(Fxu, x)
-    A = sym.Evaluate(A_symb, substitution)
-
-    B = sym.Evaluate(g, substitution)
-
-    return (A, B)
+    assert n >= 1, "n should be greater than 0"
+    table = list(itertools.product([0, 1], repeat=n))
+    return np.array(table)
 
 
 def elementary_symetric_polynomials(input: Optional[list]) -> np.ndarray:
@@ -41,38 +36,33 @@ def elementary_symetric_polynomials(input: Optional[list]) -> np.ndarray:
     given a set of numbers, compute the symetric polynomials:
     for example, given [a,b,c]
     the output should be [1, a+b+c, ab+bc+ac, abc]
-    this function is used for computing high relative degree weights  
+    this function is used for computing high relative degree weights
     for different power of Lie derivatives.
     """
     output = [1.0]
     if input is not None:
         N = len(input)
-        for i in range(1, N+1):
+        for i in range(1, N + 1):
             product_terms = []
             for comb in itertools.combinations(input, i):
-                product = 1
-                for x in comb:
-                    product *= x
-                product_terms.append(product)
+                product_terms.append(np.prod(comb))
             sum_of_products = sum(product_terms)
             output.append(sum_of_products)
     return np.array(output)
 
 
 def lie_derivative(
-        poly: sym.Polynomial, 
-        vector_feild: np.ndarray,
-        variables: np.ndarray, 
-        pow: int) -> sym.Polynomial:
+    poly: sym.Polynomial, vector_feild: np.ndarray, variables: np.ndarray, pow: int
+) -> sym.Polynomial:
     """
-    compute the n-power lie derivative of a polynomial with respect to the 
-    vector feild f. The output should be Lf^nb(x), where the b(x) is the 
-    input polynomial, and f(x), the vector feild, is an array of polynomials. 
+    compute the n-power lie derivative of a polynomial with respect to the
+    vector feild f. The output should be Lf^nb(x), where the b(x) is the
+    input polynomial, and f(x), the vector feild, is an array of polynomials.
     Both f(x) and b(x) are based on x variables.
 
     Args:
     poly: the input polynomial b(x)
-    vector_feild: the vector feild f(x)
+    vector_feild: the vector feild f(x), an array of polynomials
     variables: the variables x
     pow: the power of the lie derivative
     """
@@ -81,44 +71,53 @@ def lie_derivative(
     if pow == 0:
         return temp_x
     elif pow >= 1:
-        for i in range(1, pow+1):
+        for i in range(1, pow + 1):
             temp_x = np.dot(temp_x.Jacobian(variables), vector_feild)
         return temp_x
     else:
-        assert pow>=0, "power of lie derivative should not be negative"
+        assert pow >= 0, "power of lie derivative should not be negative"
 
 
 def lower_lie_derivatives(
-        poly: sym.Polynomial, 
-        vector_feild: np.ndarray,
-        variables: np.ndarray, 
-        relative_degree: int,
-        betas:list[float]) -> np.ndarray:
+    poly: sym.Polynomial,
+    vector_field: np.ndarray,
+    variables: np.ndarray,
+    relative_degree: int,
+    betas: list[float],
+) -> np.ndarray:
     """
     Assume relative degree = n, an HOCBF is valid if and only if:
     ∀ x ∈ {x|b(x)≥0, Lfb(x)+β1b(x)≥0, Lf^2b(x)+(β2+β1)Lfb(x)+β1β2b(x)≥0, ...,}
-    ∃ u ∈ U such that Lf^(n-1)Lgb(x)u + Lf^nb(x)+(βn+βn-1+...+β2+β1)Lf^(n-1)b(x)+...+β1β2b(x)≥0,
+    ∃ u ∈ U such that:
+        Lf^(n-1)Lgb(x)u+
+        Lf^nb(x)+(βn+βn-1+...+β2+β1)Lf^(n-1)b(x)+
+        ...
+        +β1β2b(x)≥0,
     this function computes an array of polynomials:
-    Lfb(x)+β1b(x)
-    Lf^2b(x)+(β2+β1)Lfb(x)+β1β2b(x)
-    ...
+        Lfb(x)+β1b(x)
+        Lf^2b(x)+(β2+β1)Lfb(x)+β1β2b(x)
+        ...
+    In our journal extension, we give the definition of HOCBFs by using a Phi(x) vector,
+    this function computes the elements:
+      Phi_1(x), Phi_2(x), ..., Phi_(n-1)(x) (without Phi_0(x))
+    in that vector, where n is the relative degree.
     """
 
-    output = np.empty(relative_degree-1, dtype=object)
+    output = np.empty(relative_degree - 1, dtype=object)
     # the range is from 1 to relative_degree, with relative_degree excluded.
     # hence if the relative_degree is 1, the output should be an empty array.
     for i in range(1, relative_degree):
         beta_vector = elementary_symetric_polynomials(betas[:i])
-        lie_derivatives = np.array([
-            lie_derivative(
-                poly=poly, 
-                vector_feild=vector_feild, 
-                variables=variables,
-                pow=j) 
-            for j in range(i, -1, -1)
-            ])
-        output[i-1]=np.dot(beta_vector, lie_derivatives)
-    return output  
+        lie_derivatives = np.array(
+            [
+                lie_derivative(
+                    poly=poly, vector_feild=vector_field, variables=variables, pow=j
+                )
+                for j in range(i, -1, -1)
+            ]
+        )
+        output[i - 1] = np.dot(beta_vector, lie_derivatives)
+    return output
 
 
 def check_array_of_polynomials(p: np.ndarray, x_set: sym.Variables) -> None:

@@ -1,39 +1,36 @@
 import os
 import sys
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
-
-from dataclasses import dataclass
-from typing_extensions import Self
-from typing import List, Optional, Tuple
 import numpy as np
-import itertools
-
 import pydrake.symbolic as sym
-import pydrake.solvers as solvers
-
-from compatible_clf_cbf.utils import (
-    BinarySearchOptions,
-    ContainmentLagrangianDegree,
-    ContainmentLagrangian,
-    elementary_symetric_polynomials,
-    lie_derivative,
-    lower_lie_derivatives,
-    check_array_of_polynomials,
-    get_polynomial_result,
-    new_sos_polynomial,
-    solve_with_id,
-    is_sos,
-)
+import compatible_clf_union_cbf.union_cbf as mut
+from compatible_clf_union_cbf.clf_cbf import XYDegree
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/.."))
 
 
 def main():
-    position = np.linspace(0, 1.85, 3)
-    velocity = np.linspace(-1, 0, 3)
-    position, velocity = np.meshgrid(position, velocity)
-    initial_state_1 = np.stack([position, velocity], axis=-1).reshape(-1, 2)
-    initial_state_2 = -initial_state_1
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    r = 0.5
+    h = np.array([
+        sym.Polynomial(
+            -((x[0] - 0.5)**2 + x[1]**2 - r**2)
+            ),
+        sym.Polynomial(
+            -((x[0] + 0.5)**2 + x[1]**2 - r**2)
+            ),
+    ])
+    subset = mut.UnionSubset(
+        activated=h,
+        deactivated=None,
+        variables=x
+    )
 
-    
+    emptiness_lagragian_degrees = mut.EmptinessLagrangianDegrees(
+        activated=[XYDegree(x=2, y=0), XYDegree(x=2, y=0)],
+        deactivated=None
+    )
+    result = subset.is_empty(emptiness_lagrangian_degrees=emptiness_lagragian_degrees)
+    assert result
+
 
 if __name__ == "__main__":
     main()

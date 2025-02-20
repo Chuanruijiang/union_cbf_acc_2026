@@ -11,7 +11,7 @@ import numpy as np
 import pydrake.symbolic as sym
 import pydrake.solvers as solvers
 
-from compatible_clf_cbf.utils import (
+from compatible_clf_union_cbf.utils import (
     BinarySearchOptions,
     ContainmentLagrangianDegree,
     elementary_symetric_polynomials,

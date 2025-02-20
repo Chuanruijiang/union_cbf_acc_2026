@@ -314,3 +314,42 @@ class UnionCBF:
             return EmptinessLagrangianDegrees(
                 activated=activated_degrees, deactivated=deactivated_degrees
             )
+
+
+@dataclass
+class ActivationIndicator:
+    """
+    This class stores the list of 0-1 vectors as the activation
+    indicator of the disjoint subsets in the union.
+    """
+
+    vecotor01: np.ndarray
+
+    def to_union_subsets(
+        self,
+        h: np.ndarray,
+        variables: np.ndarray,
+    ) -> np.ndarray:
+        assert len(self.vecotor01.shape) == 2
+        assert self.vecotor01.shape[1] == h.shape[0]
+        subsets = np.array([])
+        for i in range(self.vecotor01.shape[0]):
+            if np.all(self.vecotor01[i] == 1):
+                subset = UnionSubset(
+                    activated=h,
+                    deactivated=None,
+                    variables=variables,
+                )
+                subsets = np.append(subsets, subset)
+            else:
+                activated_idx = np.where(self.vecotor01[i] == 1)
+                deactivated_idx = np.where(self.vecotor01[i] == 0)
+                activated_polys = h[activated_idx]
+                deactivated_polys = h[deactivated_idx]
+                subset = UnionSubset(
+                    activated=activated_polys,
+                    deactivated=deactivated_polys,
+                    variables=variables,
+                )
+                subsets = np.append(subsets, subset)
+        return subsets

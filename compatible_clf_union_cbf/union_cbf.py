@@ -11,7 +11,7 @@ from compatible_clf_union_cbf.utils import (
     get_polynomial_result,
     solve_with_id,
     lie_derivative,
-    elementary_symetric_polynomials,
+    elementary_symetric_polynomials
 )
 
 from compatible_clf_union_cbf.clf_cbf import (
@@ -399,6 +399,3 @@ class CbfConstraint:
         rhs = self.rhs.Evaluate(env)
         constraint = prog.AddLinearConstraint(lhs_coeff, rhs, np.inf, u)
         return constraint
-
-
-# also need to include the safety verification part in this class

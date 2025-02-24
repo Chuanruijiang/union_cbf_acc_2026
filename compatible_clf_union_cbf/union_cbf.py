@@ -359,7 +359,7 @@ class UnionCBF:
 
 class CbfConstraint:
     """
-    Add the linear constraint dhdx * f(x) + dhdx * g(x)*u >= -kappa * h(x) on u.
+    Add the linear constraint ∂h(x)/∂x * f(x) + ∂h(x)/∂x * g(x)*u >= -κₕ * h(x) on u.
     """
 
     def __init__(

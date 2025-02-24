@@ -53,7 +53,7 @@ def elementary_symetric_polynomials(input: Optional[list]) -> np.ndarray:
 
 def lie_derivative(
     poly: sym.Polynomial, vector_feild: np.ndarray, variables: np.ndarray, pow: int
-) -> sym.Polynomial:
+) -> Tuple[sym.Polynomial, np.ndarray]:
     """
     compute the n-power lie derivative of a polynomial with respect to the
     vector feild f. The output should be Lf^nb(x), where the b(x) is the

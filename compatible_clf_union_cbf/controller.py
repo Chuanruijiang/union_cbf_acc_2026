@@ -5,10 +5,11 @@ import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 
 import compatible_clf_union_cbf.clf as clf
+import compatible_clf_union_cbf.union_cbf as cbf
 import compatible_clf_union_cbf.utils as utils
 
 
-def cbf_clf_QP(
+def cbf_clf_qp(
     x_value: np.ndarray,
     x: np.ndarray,
     f: np.ndarray,

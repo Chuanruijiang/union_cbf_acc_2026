@@ -12,6 +12,7 @@ import pydrake.symbolic as sym
 import pydrake.solvers as solvers
 
 from compatible_clf_union_cbf.utils import (
+    BackoffScale,
     BinarySearchOptions,
     ContainmentLagrangianDegree,
     elementary_symetric_polynomials,
@@ -21,9 +22,10 @@ from compatible_clf_union_cbf.utils import (
     get_polynomial_result,
     new_sos_polynomial,
     solve_with_id,
+    deserialize_polynomial,
+    serialize_polynomial
 )
-import compatible_clf_cbf.utils
-import compatible_clf_cbf.ellipsoid_utils as ellipsoid_utils
+import compatible_clf_union_cbf.ellipsoid_utils as ellipsoid_utils
 
 
 @dataclass
@@ -2095,7 +2097,7 @@ class CompatibleClfCbf:
         inner_ellipsoid_options: Optional[InnerEllipsoidOptions] = None,
         binary_search_scale_options: Optional[BinarySearchOptions] = None,
         compatible_states_options: Optional[CompatibleStatesOptions] = None,
-        backoff_scale_list: Optional[List[compatible_clf_cbf.utils.BackoffScale]] = None,
+        backoff_scale_list: Optional[List[BackoffScale]] = None,
         lagrangian_sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         compatible_sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> Tuple[Optional[sym.Polynomial], np.ndarray]:
@@ -3202,8 +3204,8 @@ def save_clf_cbf(
     assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
     data = {}
     if V is not None:
-        data["V"] = compatible_clf_cbf.utils.serialize_polynomial(V, x_set)
-    data["h"] = [compatible_clf_cbf.utils.serialize_polynomial(h_i, x_set) for h_i in h]
+        data["V"] = serialize_polynomial(V, x_set)
+    data["h"] = [serialize_polynomial(h_i, x_set) for h_i in h]
     if kappa_V is not None:
         data["kappa_V"] = kappa_V
     data["kappa_h"] = kappa_h
@@ -3232,10 +3234,10 @@ def load_clf_cbf(pickle_path: str, x_set: sym.Variables) -> dict:
         data = pickle.load(handle)
 
     if "V" in data.keys():
-        ret["V"] = compatible_clf_cbf.utils.deserialize_polynomial(data["V"], x_set)
+        ret["V"] = deserialize_polynomial(data["V"], x_set)
     ret["h"] = np.array(
         [
-            compatible_clf_cbf.utils.deserialize_polynomial(h_i, x_set)
+            deserialize_polynomial(h_i, x_set)
             for h_i in data["h"]
         ]
     )

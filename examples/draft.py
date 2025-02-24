@@ -1,10 +1,6 @@
-import os
-import sys
 import numpy as np
 import pydrake.symbolic as sym
 import compatible_clf_union_cbf.union_cbf as mut
-from compatible_clf_union_cbf.clf_cbf import XYDegree
-sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/.."))
 
 
 def main():
@@ -17,20 +13,24 @@ def main():
         [0],
         [1]
     ])
-    h = sym.Polynomial(1 - x[0])
-    relative_degree = 2
-    kappa_h = [0.1, 0.2]
+    # case 1:
+    h = sym.Polynomial(1 - x[0] - x[1])
+    kappa_h = 0.1
     cbf_const = mut.CbfConstraint(
         h=h,
         f=f,
         g=g,
         x=x,
         kappa=kappa_h,
-        relative_degree=relative_degree
+        relative_degree=None
     )
-    linear_const = cbf_const.add_to_prog(
-        
-    )
+    expected_lhs_coeff = np.array([sym.Polynomial(-1)])
+    expected_rhs = sym.Polynomial(-(-x[1]+kappa_h*h))
+    assert isinstance(cbf_const.lhs_coeff, np.ndarray)
+    assert cbf_const.lhs_coeff.shape[0] == expected_lhs_coeff.shape[0]
+    for i in range(expected_lhs_coeff.shape[0]):
+        assert cbf_const.lhs_coeff[i].EqualTo(expected_lhs_coeff[i])
+    assert cbf_const.rhs.EqualTo(expected_rhs)
 
 
 if __name__ == "__main__":

@@ -9,27 +9,28 @@ sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/.."))
 
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    r = 0.5
-    h = np.array([
-        sym.Polynomial(
-            -((x[0] - 0.5)**2 + x[1]**2 - r**2)
-            ),
-        sym.Polynomial(
-            -((x[0] + 0.5)**2 + x[1]**2 - r**2)
-            ),
+    f = np.array([
+        sym.Polynomial(x[1]),
+        -sym.Polynomial(0),
     ])
-    subset = mut.UnionSubset(
-        activated=h,
-        deactivated=None,
-        variables=x
+    g = np.array([
+        [0],
+        [1]
+    ])
+    h = sym.Polynomial(1 - x[0])
+    relative_degree = 2
+    kappa_h = [0.1, 0.2]
+    cbf_const = mut.CbfConstraint(
+        h=h,
+        f=f,
+        g=g,
+        x=x,
+        kappa=kappa_h,
+        relative_degree=relative_degree
     )
-
-    emptiness_lagragian_degrees = mut.EmptinessLagrangianDegrees(
-        activated=[XYDegree(x=2, y=0), XYDegree(x=2, y=0)],
-        deactivated=None
+    linear_const = cbf_const.add_to_prog(
+        
     )
-    result = subset.is_empty(emptiness_lagrangian_degrees=emptiness_lagragian_degrees)
-    assert result
 
 
 if __name__ == "__main__":

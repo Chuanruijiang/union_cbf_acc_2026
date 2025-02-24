@@ -10,6 +10,8 @@ from compatible_clf_union_cbf.utils import (
     truth_table,
     get_polynomial_result,
     solve_with_id,
+    lie_derivative,
+    elementary_symetric_polynomials,
 )
 
 from compatible_clf_union_cbf.clf_cbf import (
@@ -353,5 +355,46 @@ class UnionCBF:
             return EmptinessLagrangianDegrees(
                 activated=activated_degrees, deactivated=deactivated_degrees
             )
+
+class CbfConstraint:
+    """
+    Add the linear constraint dhdx * f(x) + dhdx * g(x)*u >= -kappa * h(x) on u.
+    """
+
+    def __init__(
+        self,
+        h: sym.Polynomial,
+        f: np.ndarray,
+        g: np.ndarray,
+        x: np.ndarray,
+        kappa: tuple[float, List[float]],
+        relative_degree: Optional[int],
+    ):
+        if relative_degree is None:
+            assert isinstance(kappa, float)
+            relative_degree = 1
+            kappa = [kappa]
+        else:
+            assert isinstance(kappa, List)
+
+        beta_vector = elementary_symetric_polynomials(kappa)
+        lie_derivative_vector = np.array([
+            lie_derivative(poly=h, vector_feild=f, variables=x, pow=j) 
+            for j in range(relative_degree, -1, -1)
+        ])
+        self.rhs = -np.dot(lie_derivative_vector, beta_vector)
+        self.lhs_coeff = lie_derivative(
+            poly=lie_derivative_vector[1], vector_feild=g, variables=x, pow=1
+        )
+        self.x = x
+
+    def add_to_prog(
+        self, prog: solvers.MathematicalProgram, x_val: np.ndarray, u: np.ndarray
+    ) -> solvers.Binding[solvers.LinearConstraint]:
+        env = {self.x[i]: x_val[i] for i in range(x_val.size)}
+        lhs_coeff = np.array([p.Evaluate(env) for p in self.lhs_coeff])
+        rhs = self.rhs.Evaluate(env)
+        constraint = prog.AddLinearConstraint(lhs_coeff, rhs, np.inf, u)
+        return constraint
 
 # also need to include the safety verification part in this class.

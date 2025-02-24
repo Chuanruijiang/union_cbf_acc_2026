@@ -356,6 +356,7 @@ class UnionCBF:
                 activated=activated_degrees, deactivated=deactivated_degrees
             )
 
+
 class CbfConstraint:
     """
     Add the linear constraint dhdx * f(x) + dhdx * g(x)*u >= -kappa * h(x) on u.
@@ -378,10 +379,12 @@ class CbfConstraint:
             assert isinstance(kappa, List)
 
         beta_vector = elementary_symetric_polynomials(kappa)
-        lie_derivative_vector = np.array([
-            lie_derivative(poly=h, vector_feild=f, variables=x, pow=j) 
-            for j in range(relative_degree, -1, -1)
-        ])
+        lie_derivative_vector = np.array(
+            [
+                lie_derivative(poly=h, vector_feild=f, variables=x, pow=j)
+                for j in range(relative_degree, -1, -1)
+            ]
+        )
         self.rhs = -np.dot(lie_derivative_vector, beta_vector)
         self.lhs_coeff = lie_derivative(
             poly=lie_derivative_vector[1], vector_feild=g, variables=x, pow=1
@@ -397,4 +400,5 @@ class CbfConstraint:
         constraint = prog.AddLinearConstraint(lhs_coeff, rhs, np.inf, u)
         return constraint
 
-# also need to include the safety verification part in this class.
+
+# also need to include the safety verification part in this class

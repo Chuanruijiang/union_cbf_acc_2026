@@ -21,7 +21,7 @@ import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 from compatible_clf_union_cbf.utils import (
-    XYDegree,
+    Degree,
     to_lagrangian_impl,
     get_polynomial_result,
     solve_with_id
@@ -29,8 +29,8 @@ from compatible_clf_union_cbf.utils import (
 
 @dataclass
 class BallInclusionLagrangian:
-    r_minus_xTx: XYDegree
-    h: XYDegree
+    r_minus_xTx: Degree
+    h: Degree
 
     def get_results(
         self,
@@ -50,8 +50,8 @@ class BallInclusionLagrangian:
 
 @dataclass
 class BallInclusionLagrangianDegree:
-    r_minus_xTx: XYDegree
-    h: XYDegree
+    r_minus_xTx: Degree
+    h: Degree
 
     def to_lagrangians(
         self,
@@ -68,6 +68,7 @@ class BallInclusionLagrangianDegree:
             prog,
             x,
             y=None,
+            c=None,
             sos_type=sos_type,
             is_sos=True,
             degree=self.r_minus_xTx,
@@ -77,6 +78,7 @@ class BallInclusionLagrangianDegree:
             prog,
             x,
             y=None,
+            c=None,
             sos_type=sos_type,
             is_sos=True,
             degree=self.h,
@@ -105,8 +107,8 @@ class BallInclusion:
         assert degrees.shape[0] == self.polys.shape[0]
         return [
             BallInclusionLagrangianDegree(
-                r_minus_xTx=XYDegree(x=degrees[i][0], y=0),
-                h=XYDegree(x=degrees[i][1], y=0)
+                r_minus_xTx=Degree(x=degrees[i][0], y=0, c=0),
+                h=Degree(x=degrees[i][1], y=0, c=0)
             )
             for i in range(self.polys.shape[0])
         ]

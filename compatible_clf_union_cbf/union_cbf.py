@@ -12,7 +12,7 @@ from compatible_clf_union_cbf.utils import (
     solve_with_id,
     lie_derivative,
     elementary_symetric_polynomials,
-    XYDegree,
+    Degree,
     to_lagrangian_impl
 )
 
@@ -75,8 +75,8 @@ class EmptinessLagrangianDegrees:
     are array of sym.polynomials, then we need a list of XYdegrees for each.
     """
 
-    activated: List[XYDegree]
-    deactivated: Optional[List[XYDegree]]
+    activated: List[Degree]
+    deactivated: Optional[List[Degree]]
 
     def to_lagrangians(
         self,
@@ -92,7 +92,8 @@ class EmptinessLagrangianDegrees:
             prog,
             x,
             y,
-            sos_type,
+            c=None,
+            sos_type=sos_type,
             is_sos=True,
             degree=self.activated,
             lagrangian=lagrangian_activated,
@@ -104,7 +105,8 @@ class EmptinessLagrangianDegrees:
                 prog,
                 x,
                 y,
-                sos_type,
+                c=None,
+                sos_type=sos_type,
                 is_sos=False,
                 degree=self.deactivated,
                 lagrangian=lagrangian_deactivated,
@@ -311,14 +313,14 @@ class UnionCBF:
         if deactivated_polys is None:
             if common_act_x_degree is not None:
                 activated_degrees = [
-                    XYDegree(x=common_act_x_degree, y=0)
+                    Degree(x=common_act_x_degree, y=0, c=0)
                     for _ in range(activated_polys.shape[0])
                 ]
             elif various_act_x_degrees is not None:
-                activated_degrees = [XYDegree(x=x, y=0) for x in various_act_x_degrees]
+                activated_degrees = [Degree(x=x, y=0, c=0) for x in various_act_x_degrees]
             else:
                 activated_degrees = [
-                    XYDegree(x=2, y=0) for _ in range(activated_polys.shape[0])
+                    Degree(x=2, y=0, c=0) for _ in range(activated_polys.shape[0])
                 ]
             return EmptinessLagrangianDegrees(
                 activated=activated_degrees, deactivated=None
@@ -326,28 +328,28 @@ class UnionCBF:
         else:
             if common_act_x_degree is not None:
                 activated_degrees = [
-                    XYDegree(x=common_act_x_degree, y=2)
+                    Degree(x=common_act_x_degree, y=2, c=0)
                     for _ in range(activated_polys.shape[0])
                 ]
             elif various_act_x_degrees is not None:
-                activated_degrees = [XYDegree(x=x, y=2) for x in various_act_x_degrees]
+                activated_degrees = [Degree(x=x, y=2, c=0) for x in various_act_x_degrees]
             else:
                 activated_degrees = [
-                    XYDegree(x=2, y=2) for _ in range(activated_polys.shape[0])
+                    Degree(x=2, y=2, c=0) for _ in range(activated_polys.shape[0])
                 ]
 
             if common_deact_x_degree is not None:
                 deactivated_degrees = [
-                    XYDegree(x=common_deact_x_degree, y=0)
+                    Degree(x=common_deact_x_degree, y=0, c=0)
                     for _ in range(deactivated_polys.shape[0])
                 ]
             elif various_deact_x_degrees is not None:
                 deactivated_degrees = [
-                    XYDegree(x=x, y=0) for x in various_deact_x_degrees
+                    Degree(x=x, y=0, c=0) for x in various_deact_x_degrees
                 ]
             else:
                 deactivated_degrees = [
-                    XYDegree(x=2, y=0) for _ in range(deactivated_polys.shape[0])
+                    Degree(x=2, y=0, c=0) for _ in range(deactivated_polys.shape[0])
                 ]
             return EmptinessLagrangianDegrees(
                 activated=activated_degrees, deactivated=deactivated_degrees

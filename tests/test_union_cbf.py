@@ -1,6 +1,6 @@
 import compatible_clf_union_cbf.union_cbf as mut
 import numpy as np
-from compatible_clf_union_cbf.utils import XYDegree
+from compatible_clf_union_cbf.utils import Degree
 
 import pydrake.symbolic as sym
 
@@ -19,7 +19,7 @@ def test_subset_empty_check():
         subset = mut.UnionSubset(activated=h, deactivated=None, variables=x)
 
         emptiness_lagragian_degrees = mut.EmptinessLagrangianDegrees(
-            activated=[XYDegree(x=2, y=0), XYDegree(x=2, y=0)], deactivated=None
+            activated=[Degree(x=2, y=0, c=0), Degree(x=2, y=0, c=0)], deactivated=None
         )
         result = subset.is_empty(
             emptiness_lagrangian_degrees=emptiness_lagragian_degrees

@@ -3,7 +3,7 @@ import pydrake.symbolic as sym
 import compatible_clf_union_cbf.ball_inclusion as mut
 
 
-def checking_ball_inclusion():
+def test_ball_inclusion():
     x = sym.MakeVectorContinuousVariable(2, "x")
     # case 1:
     center = np.array([10, 0])

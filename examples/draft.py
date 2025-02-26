@@ -5,7 +5,7 @@ import compatible_clf_union_cbf.ball_inclusion as ball_inclusion
 
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    center = np.array([1, 0])
+    center = np.array([10, 0])
     h = np.array([
         sym.Polynomial(5 - (x - center).dot(x - center)),
     ])

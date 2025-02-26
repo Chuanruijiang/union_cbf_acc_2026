@@ -20,11 +20,9 @@ from typing_extensions import Self
 import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.clf_cbf import(
-    XYDegree,
-    _to_lagrangian_impl
-)
 from compatible_clf_union_cbf.utils import (
+    XYDegree,
+    to_lagrangian_impl,
     get_polynomial_result,
     solve_with_id
 )
@@ -66,7 +64,7 @@ class BallInclusionLagrangianDegree:
     ) -> BallInclusionLagrangian:
         assert self.r_minus_xTx.y == 0
         assert self.h.y == 0
-        r_minus_xTx = _to_lagrangian_impl(
+        r_minus_xTx = to_lagrangian_impl(
             prog,
             x,
             y=None,
@@ -75,7 +73,7 @@ class BallInclusionLagrangianDegree:
             degree=self.r_minus_xTx,
             lagrangian=lagrangian_r_minus_xTx
         )
-        h = _to_lagrangian_impl(
+        h = to_lagrangian_impl(
             prog,
             x,
             y=None,

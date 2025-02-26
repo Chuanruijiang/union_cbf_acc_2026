@@ -11,12 +11,9 @@ from compatible_clf_union_cbf.utils import (
     get_polynomial_result,
     solve_with_id,
     lie_derivative,
-    elementary_symetric_polynomials
-)
-
-from compatible_clf_union_cbf.clf_cbf import (
+    elementary_symetric_polynomials,
     XYDegree,
-    _to_lagrangian_impl,
+    to_lagrangian_impl
 )
 
 
@@ -91,7 +88,7 @@ class EmptinessLagrangianDegrees:
         lagrangian_activated: Optional[np.ndarray] = None,
         lagrangian_deactivated: Optional[np.ndarray] = None,
     ) -> EmptinessLagrangians:
-        activated = _to_lagrangian_impl(
+        activated = to_lagrangian_impl(
             prog,
             x,
             y,
@@ -103,7 +100,7 @@ class EmptinessLagrangianDegrees:
         deactivated = (
             None
             if self.deactivated is None
-            else _to_lagrangian_impl(
+            else to_lagrangian_impl(
                 prog,
                 x,
                 y,

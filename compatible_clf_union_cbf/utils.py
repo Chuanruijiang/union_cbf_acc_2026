@@ -244,6 +244,91 @@ def add_log_det_lower(
 
 
 @dataclasses.dataclass
+class XYDegree:
+    """
+    The degree of each Lagrangian polynomial in indeterminates x and y. For
+    example, if we have a polynomial x₀²x₁y₂ + 3x₀y₁y₂³, its degree in x is
+    3 (from x₀²x₁), and its degree in y is 4 (from y₁y₂³)
+    """
+
+    x: int
+    y: int
+
+    def construct_polynomial(
+        self,
+        prog: solvers.MathematicalProgram,
+        x: sym.Variables,
+        y: Optional[sym.Variables],
+        is_sos: bool,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+    ) -> sym.Polynomial:
+        """
+        Args:
+          is_sos: whether the constructed polynomial is sos or not.
+        """
+        if y is None: 
+            if self.y != 0:
+                raise ValueError("y is None but y degree is not 0")
+            if is_sos:
+                basis = sym.MonomialBasis({x: int(np.floor(self.x / 2))})
+                poly, _ = prog.NewSosPolynomial(basis, type=sos_type)
+            else:
+                basis = sym.MonomialBasis({x: self.x})
+                coeffs = prog.NewContinuousVariables(basis.size)
+                poly = sym.Polynomial({basis[i]: coeffs[i] for i in range(basis.size)})
+        else:
+            if is_sos:
+                basis = sym.MonomialBasis(
+                    {x: int(np.floor(self.x / 2)), y: int(np.floor(self.y / 2))}
+                )
+                poly, _ = prog.NewSosPolynomial(basis, type=sos_type)
+            else:
+                basis = sym.MonomialBasis({x: self.x, y: self.y})
+                coeffs = prog.NewContinuousVariables(basis.size)
+                poly = sym.Polynomial({basis[i]: coeffs[i] for i in range(basis.size)})
+        return poly
+
+
+def to_lagrangian_impl(
+    prog: solvers.MathematicalProgram,
+    x: sym.Variables,
+    y: Optional[sym.Variables],
+    sos_type,
+    is_sos: bool,
+    degree: Union[
+        Optional[List[XYDegree]],
+        Optional[XYDegree],
+    ],
+    lagrangian: Union[Optional[np.ndarray], Optional[sym.Polynomial]],
+) -> Union[Optional[np.ndarray], Optional[sym.Polynomial]]:
+    """
+    Convert a XYDegree (or an array of XYDegree) to Lagrangians if `lagrangian`
+    is not None; otherwise just return `lagrangian`.
+    """
+    if lagrangian is not None:
+        return lagrangian
+    else:
+        if degree is None:
+            return None
+        else:
+            if isinstance(degree, XYDegree):
+                return degree.construct_polynomial(
+                    prog, x, y, is_sos=is_sos, sos_type=sos_type
+                )
+            elif isinstance(degree, List):
+                return np.array(
+                    [
+                        d.construct_polynomial(
+                            prog, x, y, is_sos=is_sos, sos_type=sos_type
+                        )
+                        for d in degree
+                    ]
+                )
+            else:
+                raise Exception()
+
+
+@dataclasses.dataclass
 class ContainmentLagrangian:
     """
     To certify that an algebraic set { x | f(x) <= 0, g(x)=0} is contained in another

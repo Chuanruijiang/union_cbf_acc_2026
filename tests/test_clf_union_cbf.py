@@ -1,9 +1,9 @@
 import numpy as np
 import pydrake.symbolic as sym
-import compatible_clf_union_cbf.clf_union_cbf as clf_union_cbf
+import compatible_clf_union_cbf.clf_union_cbf as mut
 
 
-def main():
+def test_calc_xi_lambda():
     x = sym.MakeVectorContinuousVariable(2, "x")
     f = np.array([
         sym.Polynomial(x[1]),
@@ -23,7 +23,7 @@ def main():
     kappa_V = 1
     kappa_h = 1
     epsilon = 0.1
-    test_object = clf_union_cbf.CompatibleClfCbfInRange(
+    test_object = mut.CompatibleClfCbfInRange(
         x=x,
         sys_dyn_f=f,
         sys_dyn_g=g,
@@ -65,9 +65,3 @@ def main():
                 assert lambda_[i][j].EqualTo(expected_lambda[i][j])
             else:
                 assert lambda_[i][j] == expected_lambda[i][j]
-
-
-
-
-if __name__ == "__main__":
-    main()

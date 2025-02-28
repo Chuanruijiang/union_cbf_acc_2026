@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from typing_extensions import Self
 
 import numpy as np
@@ -181,6 +181,36 @@ class UnionSubset:
         )
         emptiness_result = solve_with_id(prog)
         return emptiness_result.is_success()
+
+    def yc_sets_for_verification_wclf_outball(
+        self,
+        with_control_input_limits: bool = False,
+        control_Au: Optional[np.ndarray] = None,
+        control_bu: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        If we call this function, then at least we should have the
+        ball polynomial as the deactivated polynomial. Hence, the
+        deactivated member in this class should be not None. Also,
+        we consider CLF, so the activated member should be more than 1.
+        This function finds the number of activated cbfs and the
+        number of deactivated cbfs. Then, it will construct all the
+        y_sets and c_sets for the compatibility verifcation lagrangians,
+        packed them into two ndarrays and return them.
+        """
+        assert self.deactivated is not None
+        assert self.deactivated.shape[0] >= 1
+        assert self.activated.shape[0] > 1
+        n_activated_cbfs = self.activated.shape[0] - 1,
+        n_deactivated_cbfs = self.deactivated.shape[0] - 1
+        y_i_size = 2
+        if with_control_input_limits:
+            assert control_Au is not None
+            assert control_bu is not None
+            y_i_size += control_bu.shape[0]
+        ## write down the y_sets and c_sets that you wanted to generate. 
+
+
 
     def _add_emptiness_constraints(
         self,

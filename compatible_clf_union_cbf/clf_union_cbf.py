@@ -34,6 +34,164 @@ from compatible_clf_union_cbf.union_cbf import(
 
 
 @dataclass
+class SubsetVerifyLagrangian:
+    """
+    This class has the lagrangians for the compatibility verification
+    inside a union subset. Here is what we wanted to do:
+    given a non-empty subset of the union, verify that there exists
+    an activated cbf in the subset that compatible with the clf.
+    The verification SOS consists of the following lagrangians:
+    1. lagragians for lambda_y of each activated cbf.
+        This should be an array of array of polynomials, which means
+        an ndarray with size of shape = 2. Shape[0] should be the number
+        of activated cbfs. Shape[1] should be the number of control.
+    2. lagragians for xi_y of each activated cbf.
+        This should also be an ndarray of polynomials with the
+        same shape as lambda_y.
+    3. lagrangians for activated cbfs in the subset.
+        This should be an array of polynomials with the size equal to the 
+        number of activated cbfs.
+    4. lagrangians for the clf.
+        This should just be a polynomial
+    5. lagrangians for all the deactivated cbfs.
+        This should be an array of polynomials with the size equal to the 
+        number of deactivated cbfs.
+    5. lagrangians for the ball.
+        This should be a polynomial.
+    6. lagrangians for state_eq_constraints (Optional)
+        This should be an array of polynomials with the size equal to the
+        number of state_eq_constraints.
+    """
+    lambda_y: np.ndarray
+    xi_y: np.ndarray
+    activated_cbfs: np.ndarray
+    clf: sym.Polynomial
+    deactivated_cbfs: np.ndarray
+    ball: sym.Polynomial
+    state_eq_constraints: Optional[np.ndarray]
+
+    def get_results(
+        self,
+        result: solvers.MathematicalProgramResult,
+        coefficient_tol: Optional[float]
+    )-> Self:
+        lambda_y_result = get_polynomial_result(
+            result, self.lambda_y, coefficient_tol
+        )
+        xi_y_result = get_polynomial_result(
+            result, self.xi_y, coefficient_tol
+        )
+        activated_cbfs_result = get_polynomial_result(
+            result, self.activated_cbfs, coefficient_tol
+        )
+        clf_result = get_polynomial_result(
+            result, self.clf, coefficient_tol
+        )
+        deactivated_cbfs_result = get_polynomial_result(
+            result, self.deactivated_cbfs, coefficient_tol
+        )
+        ball_result = get_polynomial_result(
+            result, self.ball, coefficient_tol
+        )
+        state_eq_constraints_result = (
+            get_polynomial_result(
+                result, self.state_eq_constraints, coefficient_tol
+            )
+            if self.state_eq_constraints is not None
+            else None
+        )
+        return SubsetVerifyLagrangian(
+            lambda_y=lambda_y_result,
+            xi_y=xi_y_result,
+            activated_cbfs=activated_cbfs_result,
+            clf=clf_result,
+            deactivated_cbfs=deactivated_cbfs_result,
+            ball=ball_result,
+            state_eq_constraints=state_eq_constraints_result
+        )
+
+
+@dataclass
+class SubsetVerifyLagrangianDegree:
+    """
+    This class specifies the lagrangian degrees. We have talked
+    about the lagrngian components in last class above. This class
+    should also follows the array size as the previous class. The
+    only difference is that here we are defining array of Degree
+    objects instead of array of polynomials.
+    """
+    lambda_y: np.ndarray
+    xi_y: np.ndarray
+    activated_cbfs: np.ndarray
+    clf: Degree
+    deactivated_cbfs: np.ndarray
+    ball: Degree
+    state_eq_constraints: Optional[np.ndarray]
+    
+    def to_lagrangians(
+        self,
+        prog: solvers.MathematicalProgram,
+        x: sym.Variables,
+        y_full: np.ndarray,
+        c_full: np.ndarray,
+        *,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+        lagrangian_lambda_y: Optional[np.ndarray] = None,
+        lagrangian_xi_y: Optional[np.ndarray] = None,
+        lagrangian_activated_cbfs: Optional[np.ndarray] = None,
+        lagrangian_clf: Optional[sym.Polynomial] = None,
+        lagrangian_deactivated_cbfs: Optional[np.ndarray] = None,
+        lagrangian_ball: Optional[sym.Polynomial] = None,
+        lagrangian_state_eq_constraints: Optional[np.ndarray] = None
+    ) -> SubsetVerifyLagrangian:
+        """
+        we may use different 
+        y and c variables in different lagrangians. For example, 
+        the lagrangians for the lambda_y and xi_y of cbf h_a1(x) will
+        not use y1, the lagrangians for deactivated cbf h_d1 will not
+        use c1. Hence, if we have activated cbfs h_a1, h_a2, ..., h_ap
+        and deactivated cbfs h_d1, h_d2, ..., h_dq, the set of y and c
+        for the final SOS program should be:
+        y = [y1, y2, ..., yp]
+        c = [c1, c2, ..., cq]
+        but the lagrangian for each deactivated cbf will use different
+        subset of c, and the lagrangians for each activated cbf's lambda_y
+        and xi_y will use different subset of y.
+
+        In the args above:
+        y_full is an array of sym.variables. which is:
+            y_full = [ya1, ya2, ..., yap, y_all]
+            where y_all = [y1, y2, ..., yp] and each
+            yai = [y1, y2, ...,yi-1, yi+1, ..., yp]
+        c_full is an array of sym.variables. which is:
+            c_full = [cd1, cd2, ..., cdq, c_ball, c_all]
+            where c_all = [c1, c2, ..., cq, c_ball] and each
+            cdi = [c1, c2, ...,ci-1, ci+1, ..., cq, c_ball]
+            c_ball = [c1, c2, c3, ..., cq]
+        """
+        assert self.lambda_y.shape[0] == self.xi_y.shape[0]
+        assert y_full.shape[0] == self.lambda_y.shape[0] + 1
+        assert c_full.shape[0] == self.deactivated_cbfs.shape[0] + 1
+        
+        lambda_y_lagrangian = np.array([
+            to_lagrangian_impl(
+                prog=prog,
+                x=x,
+                y=y_full[i],
+                c=c_full[-1],
+                sos_type=sos_type,
+                is_sos=False,
+                degree=self.lambda_y[i],
+                lagrangian=lagrangian_lambda_y[i]
+                )
+            for i in range(self.lambda_y.shape[0])
+        ])
+
+
+
+
+
+@dataclass
 class BallInclusionLagrangian:
     r_minus_xTx: Degree
     h: Degree

@@ -26,7 +26,6 @@ def test_subset_empty_check():
         )
         assert result == expected_results[i]
 
-
 def test_getting_subset_from_01_vector():
     x = sym.MakeVectorContinuousVariable(2, "x")
     h = np.array(
@@ -47,7 +46,7 @@ def test_getting_subset_from_01_vector():
         None,
     ]
     case = mut.ActivationIndicator(vecotor01=input)
-    results = case.to_union_subsets(h=h, variables=x)
+    results = case.to_union_subsets(polys=h, variables=x)
     for i in range(input.shape[0]):
         for j in range(results[i].activated.shape[0]):
             assert results[i].activated[j].EqualTo(expected_activate_results[i][j])
@@ -56,7 +55,6 @@ def test_getting_subset_from_01_vector():
                 assert (
                     results[i].deactivated[j].EqualTo(expected_deactivate_results[i][j])
                 )
-
 
 def test_empty_subset_check():
     x = sym.MakeVectorContinuousVariable(2, "x")
@@ -73,18 +71,37 @@ def test_empty_subset_check():
     for i in range(radiuses.shape[0]):
         h = np.array(
             [
-                -(
-                    (x - np.array([0.5, 0])).dot(x - np.array([0.5, 0]))
-                    - radiuses[i] ** 2
-                ),
-                -(
-                    (x - np.array([-0.5, 0])).dot(x - np.array([-0.5, 0]))
-                    - radiuses[i] ** 2
-                ),
+                sym.Polynomial(
+                    radiuses[i] ** 2 - (x - np.array([0.5, 0])).dot(x - np.array([0.5, 0]))
+                    ),
+                sym.Polynomial(
+                    radiuses[i] ** 2 - (x - np.array([-0.5, 0])).dot(x - np.array([-0.5, 0]))
+                )
             ]
         )
         union_cbf = mut.UnionCBF(h=h, x=x)
-        result = union_cbf.non_empty_disjoint_subsets()
+        result = union_cbf.non_empty_disjoint_subsets(
+            lagragian_x_degrees=np.array([2, 2])
+        )
+        assert np.array_equal(result, expected_results[i])
+
+def test_empty_subset_outside_ball():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    radiuses = np.array([1.0])
+    r_ball = 0.1
+    ball_poly = sym.Polynomial(r_ball ** 2 - x.dot(x))
+    expected_results = [
+        np.array([[0, 1, 0], [1, 0, 0], [1, 1, 0]]),
+    ]
+    for i in range(radiuses.shape[0]):
+        h = np.array([
+            sym.Polynomial(radiuses[i] ** 2 - (x - np.array([0.5, 0])).dot(x - np.array([0.5, 0]))),
+            sym.Polynomial(radiuses[i] ** 2 - (x - np.array([-0.5, 0])).dot(x - np.array([-0.5, 0]))),
+        ])
+        union_cbf = mut.UnionCBF(h=h, x=x)
+        result = union_cbf.non_empty_disjoint_subsets(
+            outside_ball=True, ball_poly=ball_poly
+            )
         assert np.array_equal(result, expected_results[i])
 
 def test_cbf_constraint_initialization():
@@ -135,3 +152,5 @@ def test_cbf_constraint_initialization():
     for i in range(expected_lhs_coeff.shape[0]):
         assert cbf_const.lhs_coeff[i].EqualTo(expected_lhs_coeff[i])
     assert cbf_const.rhs.EqualTo(expected_rhs)
+
+    

@@ -238,3 +238,45 @@ def test_step_one_verification():
 
     expected_ball_exist = True
     assert (expected_ball_exist) == (eps_0 is not None)
+
+def test_all_non_empty_subsets():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    f = np.array([
+        sym.Polynomial(),
+        sym.Polynomial()
+    ])
+    g = np.array([
+        [sym.Polynomial(1), sym.Polynomial()],
+        [sym.Polynomial(), sym.Polynomial(1)],
+    ])
+    V = sym.Polynomial(x[0]**2 + x[1]**2)
+    rho = 49
+    cbf_center = np.array([
+        [-5, 0],
+        [3, 0]
+    ])
+    cbf_radiuses = np.array([5, 5])
+    h = np.array([
+        sym.Polynomial(cbf_radiuses[i]**2 - (x - cbf_center[i]).dot(x - cbf_center[i]))
+        for i in range(cbf_center.shape[0])
+    ])
+    radius = 1
+    step_two_check = mut.StepTwo(
+        clf = rho - V,
+        cbfs=h,
+        ball=sym.Polynomial(radius**2 - x.dot(x)),
+        sys_dyn_f=f,
+        sys_dyn_g=g,
+        x=x,
+        r_start=1,
+        r_lower_bound=0.1
+    )
+    non_empty_subsets_vectors,_ = step_two_check.all_non_empty_subsets_outside_ball()
+    expected_non_empty_vectors = np.array([
+        [1, 0, 1, 0],
+        [1, 1, 0, 0],
+        [1, 1, 1, 0]
+    ])
+    assert np.array_equal(non_empty_subsets_vectors, expected_non_empty_vectors)
+
+

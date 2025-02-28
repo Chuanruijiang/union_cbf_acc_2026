@@ -217,31 +217,30 @@ class ActivationIndicator:
 
     def to_union_subsets(
         self,
-        h: np.ndarray,
+        polys: np.ndarray,
         variables: np.ndarray,
     ) -> np.ndarray:
         assert len(self.vecotor01.shape) == 2
-        assert self.vecotor01.shape[1] == h.shape[0]
+        assert self.vecotor01.shape[1] == polys.shape[0]
         subsets = np.array([])
         for i in range(self.vecotor01.shape[0]):
             if np.all(self.vecotor01[i] == 1):
                 subset = UnionSubset(
-                    activated=h,
+                    activated=polys,
                     deactivated=None,
                     variables=variables,
                 )
-                subsets = np.append(subsets, subset)
             else:
                 activated_idx = np.where(self.vecotor01[i] == 1)
                 deactivated_idx = np.where(self.vecotor01[i] == 0)
-                activated_polys = h[activated_idx]
-                deactivated_polys = h[deactivated_idx]
+                activated_polys = polys[activated_idx]
+                deactivated_polys = polys[deactivated_idx]
                 subset = UnionSubset(
                     activated=activated_polys,
                     deactivated=deactivated_polys,
                     variables=variables,
                 )
-                subsets = np.append(subsets, subset)
+            subsets = np.append(subsets, subset)
         return subsets
 
 
@@ -253,29 +252,81 @@ class UnionCBF:
     def non_empty_disjoint_subsets(
         self,
         *,
-        common_act_x_degree: Optional[int] = None,
-        various_act_x_degrees: Optional[List[int]] = None,
-        common_deact_x_degree: Optional[int] = None,
-        various_deact_x_degrees: Optional[List[int]] = None,
+        outside_ball: bool = False,
+        ball_poly: Optional[sym.Polynomial] = None,
+        with_clf: bool = False,
+        clf: Optional[sym.Polynomial] = None,
+        lagragian_x_degrees: Optional[np.ndarray] = None,
+        common_x_degree: Optional[int] = None,
     ) -> np.ndarray:
         """
         This function outputs all the 0-1 vector of all non-empty disjoint
-        subsets of the union
+        subsets of the union. If the outside_ball is True, then the output
+        will be all the 0-1 verctors that represent the non-empty disjoint
+        subsets of the union that are outside the ball.
+
+        The genral idea is to see the ball as a deactivated polynomial. If
+        ourside ball is False, the output only contains the 0-1 vectors that
+        presents the actication of CBFs. But if outside_ball is True, the
+        output contains the 0-1 vectors repesenting the activation and deactivation
+        of CBFs and also the decativation of the ball polynomial.
+
+        For lagrangian degrees:
+        During emptiness checking of a subset, each CBF
+        will have a lagragain in fronr of it no matter that CBF is activated or
+        deactivated. Also, assume an activated CBF become deactivated, the only 
+        difference is that the CBF will need to time a y^2 term, the x_degree of
+        that CBF does not change. Hence, the x_degree of the Lagrangian in front
+        of that CBF can be independent of the activation status of that CBF.
+        Also, if the user does not set the degree of x variables for the lagragians
+        of CBFs, then the default value is 2.
+
+        Finally, if outside_ball is True, we should also provide the lagrangian 
+        x degrees for the ball polynomial. The ball polynomial is always deactivated.
         """
         all_possible_activation_cases = truth_table(self.h.shape[0])
-        activated_01_vectors = np.array([])
+        all_polys = self.h
+
+        if outside_ball:
+            # the ball poly should be r-x^Tx
+            assert ball_poly is not None
+            all_possible_activation_cases = np.concatenate(
+                [all_possible_activation_cases, 
+                 np.zeros((all_possible_activation_cases.shape[0], 1))],
+                axis=1
+            )
+            all_polys = np.concatenate([all_polys, np.array([ball_poly])])
+        
+        if with_clf:
+            # the clf poly should be rho-V(x)
+            assert clf is not None
+            all_possible_activation_cases = np.concatenate(
+                [np.ones((all_possible_activation_cases.shape[0], 1)),
+                 all_possible_activation_cases],
+                axis=1
+            )
+            all_polys = np.concatenate([np.array([clf]), all_polys])
+        
+        non_empty_01_vectors = np.array([])
         for i in range(1, all_possible_activation_cases.shape[0]):
-            assert all_possible_activation_cases[i].shape[0] == self.h.shape[0]
-            # In the case below, there are no deactivated polynomials
-            if np.all(all_possible_activation_cases[i] == 1):
-                activated_polys = self.h
-                deactivated_polys = None
-            # In the case below, there are deactivated polynomials
+            assert all_possible_activation_cases[i].shape[0] == (all_polys.shape[0])
+            
+            activated_idx = np.where(all_possible_activation_cases[i] == 1)
+            deactivated_idx = np.where(all_possible_activation_cases[i] == 0)
+            activated_polys = all_polys[activated_idx]
+            deactivated_polys = (
+                all_polys[deactivated_idx]
+                if deactivated_idx[0].shape[0] > 0
+                else None
+            )
+            if lagragian_x_degrees is not None:
+                assert common_x_degree is None
+                assert len(lagragian_x_degrees) == all_polys.shape[0]
+                various_act_x_degrees = lagragian_x_degrees[activated_idx]
+                various_deact_x_degrees = lagragian_x_degrees[deactivated_idx]
             else:
-                activated_idx = np.where(all_possible_activation_cases[i] == 1)
-                deactivated_idx = np.where(all_possible_activation_cases[i] == 0)
-                activated_polys = self.h[activated_idx]
-                deactivated_polys = self.h[deactivated_idx]
+                various_act_x_degrees = None
+                various_deact_x_degrees = None
 
             current_subset = UnionSubset(
                 activated=activated_polys,
@@ -285,9 +336,8 @@ class UnionCBF:
             emptiness_lagrangian_degrees = self._create_emptiness_lagragian_degrees(
                 activated_polys=activated_polys,
                 deactivated_polys=deactivated_polys,
-                common_act_x_degree=common_act_x_degree,
+                common_x_degree=common_x_degree,
                 various_act_x_degrees=various_act_x_degrees,
-                common_deact_x_degree=common_deact_x_degree,
                 various_deact_x_degrees=various_deact_x_degrees,
             )
 
@@ -295,62 +345,81 @@ class UnionCBF:
                 emptiness_lagrangian_degrees=emptiness_lagrangian_degrees
             )
             if not current_subset_is_empty:
-                activated_01_vectors = np.append(
-                    activated_01_vectors, all_possible_activation_cases[i]
+                non_empty_01_vectors = np.append(
+                    non_empty_01_vectors, all_possible_activation_cases[i]
                 )
 
-        return activated_01_vectors.reshape(-1, self.h.shape[0])
+        return non_empty_01_vectors.reshape(-1, all_polys.shape[0])
 
     def _create_emptiness_lagragian_degrees(
         self,
         activated_polys: np.ndarray,
         deactivated_polys: Optional[np.ndarray],
-        common_act_x_degree: Optional[int],
+        common_x_degree: Optional[int],
         various_act_x_degrees: Optional[List[int]],
-        common_deact_x_degree: Optional[int],
         various_deact_x_degrees: Optional[List[int]],
     ) -> EmptinessLagrangianDegrees:
         if deactivated_polys is None:
-            if common_act_x_degree is not None:
+            # In this case, we only have activated polynomials, we need to
+            # get the lagrangian degrees for activated polynomials only.
+            if common_x_degree is not None:
+                assert various_act_x_degrees is None
                 activated_degrees = [
-                    Degree(x=common_act_x_degree, y=0, c=0)
+                    Degree(x=common_x_degree, y=0, c=0)
                     for _ in range(activated_polys.shape[0])
                 ]
             elif various_act_x_degrees is not None:
-                activated_degrees = [Degree(x=x, y=0, c=0) for x in various_act_x_degrees]
+                assert common_x_degree is None
+                assert len(various_act_x_degrees) == activated_polys.shape[0]
+                activated_degrees = [
+                    Degree(x=x, y=0, c=0)
+                    for x in various_act_x_degrees
+                    ]
             else:
                 activated_degrees = [
                     Degree(x=2, y=0, c=0) for _ in range(activated_polys.shape[0])
                 ]
+            
             return EmptinessLagrangianDegrees(
                 activated=activated_degrees, deactivated=None
             )
         else:
-            if common_act_x_degree is not None:
+            # In this case, we have deactivated polynomials, we need to 
+            # get the lagrangian degrees for both activated and deactivated polynomials
+            if common_x_degree is not None:
+                assert various_act_x_degrees is None
+                assert various_deact_x_degrees is None
                 activated_degrees = [
-                    Degree(x=common_act_x_degree, y=2, c=0)
+                    Degree(x=common_x_degree, y=2, c=0)
                     for _ in range(activated_polys.shape[0])
                 ]
-            elif various_act_x_degrees is not None:
-                activated_degrees = [Degree(x=x, y=2, c=0) for x in various_act_x_degrees]
-            else:
-                activated_degrees = [
-                    Degree(x=2, y=2, c=0) for _ in range(activated_polys.shape[0])
-                ]
-
-            if common_deact_x_degree is not None:
                 deactivated_degrees = [
-                    Degree(x=common_deact_x_degree, y=0, c=0)
+                    Degree(x=common_x_degree, y=0, c=0)
                     for _ in range(deactivated_polys.shape[0])
                 ]
-            elif various_deact_x_degrees is not None:
+            elif various_act_x_degrees is not None:
+                assert various_deact_x_degrees is not None
+                assert len(various_act_x_degrees) == activated_polys.shape[0]
+                assert len(various_deact_x_degrees) == deactivated_polys.shape[0]
+                activated_degrees = [
+                    Degree(x=x, y=2, c=0)
+                    for x in various_act_x_degrees
+                    ]
                 deactivated_degrees = [
-                    Degree(x=x, y=0, c=0) for x in various_deact_x_degrees
-                ]
+                    Degree(x=x, y=0, c=0)
+                    for x in various_deact_x_degrees
+                    ]
             else:
-                deactivated_degrees = [
-                    Degree(x=2, y=0, c=0) for _ in range(deactivated_polys.shape[0])
+                activated_degrees = [
+                    Degree(x=2, y=2, c=0)
+                    for _ in range(activated_polys.shape[0])
                 ]
+                deactivated_degrees = [
+                    Degree(x=2, y=0, c=0)
+                    for _ in range(deactivated_polys.shape[0])
+                ]
+            
+            
             return EmptinessLagrangianDegrees(
                 activated=activated_degrees, deactivated=deactivated_degrees
             )
@@ -398,3 +467,4 @@ class CbfConstraint:
         rhs = self.rhs.Evaluate(env)
         constraint = prog.AddLinearConstraint(lhs_coeff, rhs, np.inf, u)
         return constraint
+

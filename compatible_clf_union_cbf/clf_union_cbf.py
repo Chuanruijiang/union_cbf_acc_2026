@@ -26,6 +26,11 @@ from compatible_clf_union_cbf.utils import (
     lie_derivative,
     check_array_of_polynomials
 )
+from compatible_clf_union_cbf.union_cbf import(
+    UnionCBF,
+    UnionSubset,
+    ActivationIndicator
+)
 
 
 @dataclass
@@ -607,4 +612,58 @@ class StepOne:
         # if the while loop finishes, this means we cannot find a valid r, meaning that we
         # cannot find a valid ball that is included by a cbf and the clf-cbf is compatible in it.
         return None
-        
+
+
+@ dataclass
+class StepTwo:
+    clf: sym.Polynomial
+    cbfs: np.ndarray
+    ball: sym.Polynomial
+    sys_dyn_f: np.ndarray
+    sys_dyn_g: np.ndarray
+    x: np.ndarray
+    r_start: float
+    r_lower_bound: float
+
+    def all_non_empty_subsets_outside_ball(
+        self,
+        emptiness_lagragian_x_degrees: Optional[np.ndarray] = None,
+        emptiness_lagragian_common_x_degree: Optional[int] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        This function returns all the non-empty subsets of the union.
+        The subsets all have clf as the activated polynomial and the ball
+        as the deactivated polynomial.
+        The return of this function is an array of UnionSubset objects.
+        """
+        if emptiness_lagragian_x_degrees is not None:
+            assert emptiness_lagragian_x_degrees.shape[0] == (
+                self.cbfs.shape[0] + 2
+            )
+        union_of_cbfs = UnionCBF(
+            h = self.cbfs,
+            x = self.x
+        )
+        non_empty_subset_01_vector = union_of_cbfs.non_empty_disjoint_subsets(
+            outside_ball=True,
+            ball_poly=self.ball,
+            with_clf=True,
+            clf=self.clf,
+            lagragian_x_degrees=emptiness_lagragian_x_degrees,
+            common_x_degree=emptiness_lagragian_common_x_degree
+        )
+        activation_indicator = ActivationIndicator(
+            vecotor01=non_empty_subset_01_vector
+        )
+        non_empty_subsets = activation_indicator.to_union_subsets(
+            polys=np.concatenate(
+                [np.array([self.clf]), self.cbfs, np.array([self.ball])], 
+                axis=0
+            ),
+            variables=self.x
+        )
+        return non_empty_subset_01_vector, non_empty_subsets
+    
+
+
+

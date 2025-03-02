@@ -1036,13 +1036,67 @@ class StepOne:
     x: np.ndarray
     r_start: float
     r_lower_bound: float
+    state_eq_constraints: Optional[np.ndarray]
 
-    def _compatible_in_ball(
+    def _create_ball_inclusion_lagrangian_degrees(
+        self,
+        ball_x_degree: List[int],
+        cbf_x_degree: List[int],
+    ) -> List[BallInclusionLagrangianDegree]:
+        assert len(ball_x_degree) == self.cbfs.shape[0]
+        assert len(cbf_x_degree) == self.cbfs.shape[0]
+        ball_inclusion_lagrangian_degrees = []
+        for i in range(self.cbfs.shape[0]):
+            ball_inclusion_lagrangian_degrees.append(
+                BallInclusionLagrangianDegree(
+                    r_minus_xTx=Degree(x=ball_x_degree[i], y=0, c=0),
+                    h=Degree(x=cbf_x_degree[i], y=0, c=0)
+                )
+            )
+        return ball_inclusion_lagrangian_degrees
+
+    def _create_qp_feasible_in_ball_lagrangian_degrees(
+        self,
+        lambda_y_x_degrees: List[int],
+        xi_y_x_degrees: List[int],
+        ball_x_degree: List[int],
+        state_eq_x_degrees: Optional[List[int]]
+    ) -> List[CompatibilityInRangeLagragianDegrees]:
+        assert len(lambda_y_x_degrees) == self.cbfs.shape[0]
+        assert len(xi_y_x_degrees) == self.cbfs.shape[0]
+        assert len(ball_x_degree) == self.cbfs.shape[0]
+        if self.state_eq_constraints is not None:
+            assert len(state_eq_x_degrees) == self.state_eq_constraints.shape[0]
+        
+        num_of_control = self.sys_dyn_g.shape[1]
+        qp_feasible_in_ball_lagrangian_degrees = []
+        for i in range(self.cbfs.shape[0]):
+            lambda_y = [
+                Degree(x=lambda_y_x_degrees[i], y=0, c=0)
+                for _ in range(num_of_control)
+            ]
+            xi_y = Degree(x=xi_y_x_degrees[i], y=0, c=0)
+            ball = [Degree(x=ball_x_degree[i], y=2, c=0)]
+            state_eq = None
+            if self.state_eq_constraints is not None:
+                state_eq = [
+                    Degree(x=state_eq_x_degrees[j], y=2, c=0)
+                    for j in range(self.state_eq_constraints.shape[0])
+                ]
+            qp_feasible_in_ball_lagrangian_degrees.append(
+                CompatibilityInRangeLagragianDegrees(
+                    lambda_y=lambda_y,
+                    xi_y=xi_y,
+                    range_non_negative=ball,
+                    range_strictly_positive=None,
+                    state_eq_const=state_eq
+                )
+            )
+        return qp_feasible_in_ball_lagrangian_degrees
+
+    def _qp_feasible_in_ball(
         self,
         r: float,
-        sys_dyn_f: np.ndarray,
-        sys_dyn_g: np.ndarray,
-        clf: sym.Polynomial,
         cbf: sym.Polynomial,
         kappa_V: float,
         kappa_h: float,
@@ -1051,9 +1105,9 @@ class StepOne:
         ball = sym.Polynomial(r - self.x.dot(self.x))
         compatibility_obj = CompatibleClfCbfInRange(
             x=self.x,
-            sys_dyn_f=sys_dyn_f,
-            sys_dyn_g=sys_dyn_g,
-            V=clf,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            V=self.clf,
             h=cbf,
             range_non_negative=np.array([ball]),
             range_strictly_positive=None,
@@ -1090,12 +1144,34 @@ class StepOne:
         self,
         kappa_V: float,
         kappa_h: List[float],
-        ball_inclusion_lagrangian_degrees: List[BallInclusionLagrangianDegree],
-        compatibility_lagrangian_degrees: List[CompatibilityInRangeLagragianDegrees]
+        ball_inclusion_ball_x_degrees: List[int],
+        ball_inclusion_cbf_x_degrees: List[int],
+        qp_feasible_in_ball_lambda_y_x_degrees: List[int],
+        qp_feasible_in_ball_xi_y_x_degrees: List[int],
+        qp_feasible_in_ball_ball_x_degrees: List[int],
+        qp_feasible_in_ball_state_eq_x_degrees: Optional[List[List[int]]]
     ) -> Optional[float]:
         assert len(kappa_h) == self.cbfs.shape[0]
-        assert len(ball_inclusion_lagrangian_degrees) == self.cbfs.shape[0]
-        assert len(compatibility_lagrangian_degrees) == self.cbfs.shape[0]
+        assert len(ball_inclusion_ball_x_degrees) == self.cbfs.shape[0]
+        assert len(ball_inclusion_cbf_x_degrees) == self.cbfs.shape[0]
+        assert len(qp_feasible_in_ball_lambda_y_x_degrees) == self.cbfs.shape[0]
+        assert len(qp_feasible_in_ball_xi_y_x_degrees) == self.cbfs.shape[0]
+        assert len(qp_feasible_in_ball_ball_x_degrees) == self.cbfs.shape[0]
+        if self.state_eq_constraints is not None:
+            assert len(qp_feasible_in_ball_state_eq_x_degrees) == self.cbfs.shape[0]
+
+        (ball_inclusion_lagrangian_degrees
+        ) = self._create_ball_inclusion_lagrangian_degrees(
+            ball_x_degree=ball_inclusion_ball_x_degrees,
+            cbf_x_degree=ball_inclusion_cbf_x_degrees
+        )
+        (qp_feasible_in_ball_lagrangian_degrees
+        ) = self._create_qp_feasible_in_ball_lagrangian_degrees(
+            lambda_y_x_degrees=qp_feasible_in_ball_lambda_y_x_degrees,
+            xi_y_x_degrees=qp_feasible_in_ball_xi_y_x_degrees,
+            ball_x_degree=qp_feasible_in_ball_ball_x_degrees,
+            state_eq_x_degrees=qp_feasible_in_ball_state_eq_x_degrees
+        )
         
         current_r = self.r_start
         while current_r >= self.r_lower_bound:
@@ -1106,15 +1182,12 @@ class StepOne:
                     lagrangian_degree=ball_inclusion_lagrangian_degrees[i]
                 )
                 if inclusion:
-                    compatible = self._compatible_in_ball(
+                    compatible = self._qp_feasible_in_ball(
                         r=current_r,
-                        sys_dyn_f=self.sys_dyn_f,
-                        sys_dyn_g=self.sys_dyn_g,
-                        clf=self.clf,
                         cbf=self.cbfs[i],
                         kappa_V=kappa_V,
                         kappa_h=kappa_h[i],
-                        lagragian_degree=compatibility_lagrangian_degrees[i]
+                        lagragian_degree=qp_feasible_in_ball_lagrangian_degrees[i]
                     )
                     if compatible:
                         return current_r
@@ -1130,7 +1203,7 @@ class StepOne:
 class StepTwo:
     """
     clf is ρ - V(x), 
-    ball is r - xᵀx,
+    ball is eps0^2 - xᵀx,
     """
     clf: sym.Polynomial
     cbfs: np.ndarray
@@ -1140,6 +1213,7 @@ class StepTwo:
     x: np.ndarray
     r_start: float
     r_lower_bound: float
+    state_eq_constraints: Optional[np.ndarray]
 
     def all_non_empty_subsets_outside_ball(
         self,
@@ -1209,7 +1283,9 @@ class StepTwo:
         num_control = self.sys_dyn_g.shape[1]
         num_activated_cbfs = subset.activated.shape[0] - 1
         num_deactivated_cbfs = subset.deactivated.shape[0] - 1
-        num_state_eq = 0 # change this when class design are different.
+        num_state_eq = 0
+        if self.state_eq_constraints is not None:
+            num_state_eq = self.state_eq_constraints.shape[0]
 
         lambda_y_y_degree = y_degree
         xi_y_y_degree = y_degree
@@ -1344,4 +1420,108 @@ class StepTwo:
             else:
                 return eps_current
         return None
+
+
+class CompatibleClfUnionCbfs:
+    def __init__(
+        self,
+        x: np.ndarray,
+        sys_dyn_f: np.ndarray,
+        sys_dyn_g: np.ndarray,
+        clf: sym.Polynomial,
+        cbfs: np.ndarray,
+        state_eq_constraints: Optional[np.ndarray]
+    ):
+        self.x = x
+        self.sys_dyn_f = sys_dyn_f
+        self.sys_dyn_g = sys_dyn_g
+        self.clf = clf
+        self.cbfs = cbfs
+        self.state_eq_constraints = state_eq_constraints
+    
+    def general_union_verification(
+        self,
+        epsilon0_start: float,
+        epsilon0_lower_bound: float,
+        epsilon_start: float,
+        epsilon_lower_bound: float,
+        kappa_V: float,
+        rho: float,
+        kappa_h: List[float],
+        ball_inclusion_ball_x_degrees: List[int],
+        ball_inclusion_cbf_x_degrees: List[int],
+        qp_feasible_in_ball_lambda_y_x_degrees: List[int],
+        qp_feasible_in_ball_xi_y_x_degrees: List[int],
+        qp_feasible_in_ball_ball_x_degrees: List[int],
+        qp_feasible_in_ball_state_eq_x_degrees: Optional[List[List[int]]],
+        compatible_in_subset_x_degree: int,
+        compatible_in_subset_y_degree: int,
+        compatible_in_subset_c_degree: int,
+    ) -> bool:
+        assert len(kappa_h) == self.cbfs.shape[0]
+        assert len(ball_inclusion_ball_x_degrees) == self.cbfs.shape[0]
+        assert len(ball_inclusion_cbf_x_degrees) == self.cbfs.shape[0]
+        assert len(qp_feasible_in_ball_lambda_y_x_degrees) == self.cbfs.shape[0]
+        assert len(qp_feasible_in_ball_xi_y_x_degrees) == self.cbfs.shape[0]
+        assert len(qp_feasible_in_ball_ball_x_degrees) == self.cbfs.shape[0]
+        if self.state_eq_constraints is not None:
+            assert len(qp_feasible_in_ball_state_eq_x_degrees) == self.cbfs.shape[0]
+        
+        step_one = StepOne(
+            clf=self.clf,
+            cbfs=self.cbfs,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            x=self.x,
+            r_start=epsilon0_start,
+            r_lower_bound=epsilon0_lower_bound,
+            state_eq_constraints=self.state_eq_constraints
+        )
+
+        epsilon0 = step_one.step_one_verification(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            ball_inclusion_ball_x_degrees=ball_inclusion_ball_x_degrees,
+            ball_inclusion_cbf_x_degrees=ball_inclusion_cbf_x_degrees,
+            qp_feasible_in_ball_lambda_y_x_degrees=qp_feasible_in_ball_lambda_y_x_degrees,
+            qp_feasible_in_ball_xi_y_x_degrees=qp_feasible_in_ball_xi_y_x_degrees,
+            qp_feasible_in_ball_ball_x_degrees=qp_feasible_in_ball_ball_x_degrees,
+            qp_feasible_in_ball_state_eq_x_degrees=qp_feasible_in_ball_state_eq_x_degrees
+        )
+        if epsilon0 is None:
+            print("Step one failed. Could not find a valide eps_0")
+            return False
+        else:
+            print("Step one passed! epsilon0 is: ", epsilon0)
+        
+        step_two = StepTwo(
+            clf=(rho - self.clf),
+            cbfs=self.cbfs,
+            ball=sym.Polynomial(epsilon0**2 - self.x.dot(self.x)),
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            x=self.x,
+            r_start=epsilon_start,
+            r_lower_bound=epsilon_lower_bound,
+            state_eq_constraints=self.state_eq_constraints
+        )
+
+        epsilon = step_two.step_two_verification(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            lagragian_x_degree=compatible_in_subset_x_degree,
+            lagragian_y_degree=compatible_in_subset_y_degree,
+            lagragian_c_degree=compatible_in_subset_c_degree
+        )
+        if epsilon is None:
+            print("Step two failed. Could not find a valide eps")
+            return False
+        else:
+            print("Step two passed! epsilon is: ", epsilon)
+        
+        return True
+        
+
+    
+
 

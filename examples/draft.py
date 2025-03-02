@@ -6,7 +6,8 @@ from compatible_clf_union_cbf.clf_union_cbf import(
     StepOne,
     SubsetVerifyLagrangianDegree,
     CompatibleClfCbfInSubset,
-    StepTwo
+    StepTwo,
+    CompatibleClfUnionCbfs
 )
 from compatible_clf_union_cbf.union_cbf import(
     UnionSubset
@@ -45,66 +46,35 @@ def main():
     kappa_V = 0.1
     kappa_h = [1, 1]
 
-    check_object_step1 = StepOne(
-        clf = V,
-        cbfs = h,
+    compatibile_object = CompatibleClfUnionCbfs(
+        x=x,
         sys_dyn_f=f,
         sys_dyn_g=g,
-        x=x,
-        r_start=1,
-        r_lower_bound=0.1
-        )
-    # specify compatibility lagragian degrees:
-    compatibility_lagrangian_degree = CompatibilityInRangeLagragianDegrees(
-        lambda_y=[
-            Degree(x=2, y=0, c=0),
-            Degree(x=2, y=0, c=0)
-        ],
-        xi_y=Degree(x=2, y=0, c=0),
-        range_non_negative=[
-            Degree(x=2, y=2, c=0)
-        ],
-        range_strictly_positive=None,
-        state_eq_const=None
-    )
-    compatibility_lagrangian_degrees = [compatibility_lagrangian_degree] * h.shape[0]
-
-    # specify the ball inclusion lagragian degrees:
-    ball_inclusion_larangian_degree = BallInclusionLagrangianDegree(
-        r_minus_xTx=Degree(x=2, y=0, c=0),
-        h=Degree(x=2, y=0, c=0)
-    )
-    ball_inclusion_lagrangian_degrees = [ball_inclusion_larangian_degree] * h.shape[0]
-    
-    eps_0_out = check_object_step1.step_one_verification(
-        kappa_V=kappa_V,
-        kappa_h=kappa_h,
-        ball_inclusion_lagrangian_degrees=ball_inclusion_lagrangian_degrees,
-        compatibility_lagrangian_degrees=compatibility_lagrangian_degrees
-    )
-    assert eps_0_out is not None
-
-
-    check_object_step2 = StepTwo(
-        clf=rho - V,
+        clf=V,
         cbfs=h,
-        ball=ball,
-        sys_dyn_f=f,
-        sys_dyn_g=g,
-        x=x,
-        r_start=0.1,
-        r_lower_bound=0.01
+        state_eq_constraints=None,
     )
 
-    eps_output = check_object_step2.step_two_verification(
+    general_compatibility = compatibile_object.general_union_verification(
+        epsilon0_start=1,
+        epsilon0_lower_bound=0.1,
+        epsilon_start=0.1,
+        epsilon_lower_bound=0.01,
         kappa_V=kappa_V,
+        rho=rho,
         kappa_h=kappa_h,
-        lagragian_x_degree=2,
-        lagragian_y_degree=2,
-        lagragian_c_degree=2,
+        ball_inclusion_ball_x_degrees=[2,2],
+        ball_inclusion_cbf_x_degrees=[2,2],
+        qp_feasible_in_ball_lambda_y_x_degrees=[2, 2],
+        qp_feasible_in_ball_xi_y_x_degrees=[2, 2],
+        qp_feasible_in_ball_ball_x_degrees=[2, 2],
+        qp_feasible_in_ball_state_eq_x_degrees=None,
+        compatible_in_subset_x_degree=2,
+        compatible_in_subset_y_degree=2,
+        compatible_in_subset_c_degree=2,
     )
 
-    assert eps_output is not None
+    assert general_compatibility
 
 
 

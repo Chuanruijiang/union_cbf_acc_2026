@@ -1026,6 +1026,9 @@ class CompatibleClfCbfInSubset:
 
 @dataclass
 class StepOne:
+    """
+    The clf here is just V(x)
+    """
     clf: sym.Polynomial
     cbfs: np.ndarray
     sys_dyn_f: np.ndarray
@@ -1125,6 +1128,10 @@ class StepOne:
 
 @ dataclass
 class StepTwo:
+    """
+    clf is ρ - V(x), 
+    ball is r - xᵀx,
+    """
     clf: sym.Polynomial
     cbfs: np.ndarray
     ball: sym.Polynomial
@@ -1173,4 +1180,168 @@ class StepTwo:
         )
         return non_empty_subset_01_vector, non_empty_subsets
 
+    def _create_subset_verification_lagragian_degrees(
+        self,
+        subset: UnionSubset,
+        x_degree: int,
+        y_degree: int,
+        c_degree: int
+    ) -> SubsetVerifyLagrangianDegree:
+        """
+        For different subsets, the activated and deactivated polynomials are different.
+        Hence, the lagragian degrees for verfication of each subset may be different.
+        This function is used to create the lagragian degrees for a given subset.
+
+        A union subset object has two components:
+        activated_polynomials:
+            The first polynomial is the ρ - V(x), the rest are activated cbfs.
+        deactivated_polynomials:
+            The last polynomial is the ball (r - xᵀx), the rest are deactivated cbfs.
+
+        Noted that the subset object should present a non-empty subset. Hence this function
+        should be called after the "all_non_empty_subsets_outside_ball()".
+        """
+        # we need to make sure that the subset has activated CBF, otherwise this subset
+        # is in unsafe region.
+        assert subset.activated.shape[0] > 1
+        assert subset.deactivated.shape[0] >= 1
+
+        num_control = self.sys_dyn_g.shape[1]
+        num_activated_cbfs = subset.activated.shape[0] - 1
+        num_deactivated_cbfs = subset.deactivated.shape[0] - 1
+        num_state_eq = 0 # change this when class design are different.
+
+        lambda_y_y_degree = y_degree
+        xi_y_y_degree = y_degree
+        if num_activated_cbfs == 1:
+            lambda_y_y_degree = 0
+            xi_y_y_degree = 0
+        ball_c_degree = c_degree
+        if num_deactivated_cbfs == 0:
+            ball_c_degree = 0
+        
+        lambda_y_degree = [
+            [
+                Degree(x=x_degree, y=lambda_y_y_degree, c=c_degree)
+                for _ in range(num_control)
+            ]
+            for _ in range(num_activated_cbfs)
+        ]
+
+        xi_y_degree = [
+            Degree(x=x_degree, y=xi_y_y_degree, c=c_degree)
+            for _ in range(num_activated_cbfs)
+        ]
+
+        clf_degree = Degree(x=x_degree, y=y_degree, c=c_degree)
+
+        activated_cbfs_degree = [
+            Degree(x=x_degree, y=y_degree, c=c_degree)
+            for _ in range(num_activated_cbfs)
+        ]
+
+        if num_deactivated_cbfs != 0:
+            deactivated_cbf_degree = [
+                Degree(x=x_degree, y=y_degree, c=c_degree)
+                for _ in range(num_deactivated_cbfs)
+            ]
+        else:   
+            deactivated_cbf_degree = None
+        
+        ball_degree = Degree(x=x_degree, y=y_degree, c=ball_c_degree)
+
+        if num_state_eq != 0:
+            state_eq_degree = [
+                Degree(x=x_degree, y=y_degree, c=c_degree)
+                for _ in range(num_state_eq)
+            ]
+        else:
+            state_eq_degree = None
+        
+        return SubsetVerifyLagrangianDegree(
+            lambda_y=lambda_y_degree,
+            xi_y=xi_y_degree,
+            activated_cbfs=activated_cbfs_degree,
+            clf=clf_degree,
+            deactivated_cbfs=deactivated_cbf_degree,
+            ball=ball_degree,
+            state_eq_constraints=state_eq_degree
+        )
+
+    def verify_subset(
+        self,
+        subset: UnionSubset,
+        kappa_V: float,
+        kappa_h: List[float],
+        epsilon: float,
+        lagrangian_degrees: SubsetVerifyLagrangianDegree
+    ) -> bool:
+        compatibility_obj = CompatibleClfCbfInSubset(
+            x=self.x,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            subset=subset,
+            Au=None,
+            bu=None,
+            state_eq_constraints=None
+        )
+        lagrangians = compatibility_obj.verify_compatibility_in_subset(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            epsilon=epsilon,
+            lagrangian_degrees=lagrangian_degrees
+        )
+        return lagrangians is not None    
+
+    def step_two_verification(
+        self,
+        kappa_V: float,
+        kappa_h: List[float],
+        lagragian_x_degree: int,
+        lagragian_y_degree: int,
+        lagragian_c_degree: int,
+        emptiness_lagragian_x_degrees: Optional[np.ndarray] = None,
+        emptiness_lagragian_common_x_degree: Optional[int] = None
+    )-> Optional[float]:
+        """
+        This is the second step of the verification. 
+        The output is going to be the feasible epsilon, if there is no
+        feasible epsilon, the output is None.
+        """
+        _, non_empty_subsets = self.all_non_empty_subsets_outside_ball(
+            emptiness_lagragian_x_degrees=emptiness_lagragian_x_degrees,
+            emptiness_lagragian_common_x_degree=emptiness_lagragian_common_x_degree
+        )
+        print("non_empty_subsets computed, number of non-empty subsets: ", non_empty_subsets.shape[0])
+
+        eps_current = self.r_start
+        infeasible = False
+        while(eps_current >= self.r_lower_bound):
+            to_be_verified_subsets = non_empty_subsets
+            for subset in non_empty_subsets:
+                lagrangian_degrees = self._create_subset_verification_lagragian_degrees(
+                    subset=subset,
+                    x_degree=lagragian_x_degree,
+                    y_degree=lagragian_y_degree,
+                    c_degree=lagragian_c_degree
+                )
+                current_is_feasible = self.verify_subset(
+                    subset=subset,
+                    kappa_V=kappa_V,
+                    kappa_h=kappa_h,
+                    epsilon=eps_current,
+                    lagrangian_degrees=lagrangian_degrees
+                )
+                if current_is_feasible:
+                    infeasible = False
+                    to_be_verified_subsets = np.delete(to_be_verified_subsets, 0)
+                else:
+                    infeasible = True
+                    non_empty_subsets = to_be_verified_subsets
+                    break
+            if infeasible:
+                eps_current = eps_current / 2
+            else:
+                return eps_current
+        return None
 

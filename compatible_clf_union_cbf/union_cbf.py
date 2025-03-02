@@ -185,9 +185,8 @@ class UnionSubset:
     def yc_sets_for_verification_wclf_outball(
         self,
         with_control_input_limits: bool = False,
-        control_Au: Optional[np.ndarray] = None,
-        control_bu: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        control_constriant_size: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         If we call this function, then at least we should have the
         ball polynomial as the deactivated polynomial. Hence, the
@@ -197,20 +196,49 @@ class UnionSubset:
         number of deactivated cbfs. Then, it will construct all the
         y_sets and c_sets for the compatibility verifcation lagrangians,
         packed them into two ndarrays and return them.
+        The outputs are:
+        1. y_sets,
+        2. c_sets,
+        3. y_all,
+        4. c_all
         """
         assert self.deactivated is not None
         assert self.deactivated.shape[0] >= 1
         assert self.activated.shape[0] > 1
-        n_activated_cbfs = self.activated.shape[0] - 1,
-        n_deactivated_cbfs = self.deactivated.shape[0] - 1
+        n_activated_cbfs = self.activated.shape[0] - 1
+        n_deactivated_polys = self.deactivated.shape[0]
+        
+        # compute y_sets
         y_i_size = 2
         if with_control_input_limits:
-            assert control_Au is not None
-            assert control_bu is not None
-            y_i_size += control_bu.shape[0]
-        ## write down the y_sets and c_sets that you wanted to generate. 
-
-
+            assert control_constriant_size is not None
+            y_i_size += control_constriant_size
+        y_sets = np.empty((n_activated_cbfs + 1), dtype=object)
+        y_all = np.empty((n_activated_cbfs, y_i_size), dtype=object)
+        for i in range(n_activated_cbfs):
+            y_i = sym.MakeVectorContinuousVariable(y_i_size, "y"+str(i))
+            y_all[i] = y_i
+        y_all_set = sym.Variables(y_all.flatten())
+        y_sets[-1] = y_all_set
+        for i in range(n_activated_cbfs):
+            ya_i = np.delete(y_all, i, axis=0)
+            if ya_i.size == 0:
+                pass
+            else:
+                y_sets[i] = sym.Variables(ya_i.flatten())
+        
+        # compute c_sets
+        c_sets = np.empty((n_deactivated_polys + 1,), dtype=object)
+        c_all = sym.MakeVectorContinuousVariable(n_deactivated_polys, "c")
+        c_sets[-1] = sym.Variables(c_all)
+        for i in range(n_deactivated_polys):
+            c_i = np.delete(c_all, i, axis=0)
+            if c_i.size == 0:
+                pass
+            else:
+                c_sets[i] = sym.Variables(c_i)
+        
+        return (y_sets, c_sets, y_all, c_all)
 
     def _add_emptiness_constraints(
         self,
@@ -314,11 +342,12 @@ class UnionCBF:
         Finally, if outside_ball is True, we should also provide the lagrangian 
         x degrees for the ball polynomial. The ball polynomial is always deactivated.
         """
+        # the ball poly should be r-x^Tx
+        # the clf poly should be rho-V(x)
         all_possible_activation_cases = truth_table(self.h.shape[0])
         all_polys = self.h
 
         if outside_ball:
-            # the ball poly should be r-x^Tx
             assert ball_poly is not None
             all_possible_activation_cases = np.concatenate(
                 [all_possible_activation_cases, 
@@ -328,7 +357,6 @@ class UnionCBF:
             all_polys = np.concatenate([all_polys, np.array([ball_poly])])
         
         if with_clf:
-            # the clf poly should be rho-V(x)
             assert clf is not None
             all_possible_activation_cases = np.concatenate(
                 [np.ones((all_possible_activation_cases.shape[0], 1)),

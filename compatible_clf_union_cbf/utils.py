@@ -289,7 +289,15 @@ class Degree:
                 coeffs = prog.NewContinuousVariables(basis.size)
                 poly = sym.Polynomial({basis[i]: coeffs[i] for i in range(basis.size)})
         elif y is None and c is not None:
-            raise ValueError("c is not None but y is None")
+            if is_sos:
+                basis = sym.MonomialBasis(
+                    {x: int(np.floor(self.x / 2)), c: int(np.floor(self.c / 2))}
+                )
+                poly, _ = prog.NewSosPolynomial(basis, type=sos_type)
+            else:
+                basis = sym.MonomialBasis({x: self.x, c: self.c})
+                coeffs = prog.NewContinuousVariables(basis.size)
+                poly = sym.Polynomial({basis[i]: coeffs[i] for i in range(basis.size)})
         else: 
             if is_sos:
                 basis = sym.MonomialBasis(

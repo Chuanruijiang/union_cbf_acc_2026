@@ -46,8 +46,8 @@ class SubsetVerifyLagrangian:
         an ndarray with size of shape = 2. Shape[0] should be the number
         of activated cbfs. Shape[1] should be the number of control.
     2. lagragians for xi_y of each activated cbf.
-        This should also be an ndarray of polynomials with the
-        same shape as lambda_y.
+        This should also be an array of polynomials with the shape = 
+        lambda_y.shape[0].
     3. lagrangians for activated cbfs in the subset.
         This should be an array of polynomials with the size equal to the 
         number of activated cbfs.
@@ -66,7 +66,7 @@ class SubsetVerifyLagrangian:
     xi_y: np.ndarray
     activated_cbfs: np.ndarray
     clf: sym.Polynomial
-    deactivated_cbfs: np.ndarray
+    deactivated_cbfs: Optional[np.ndarray]
     ball: sym.Polynomial
     state_eq_constraints: Optional[np.ndarray]
 
@@ -87,8 +87,12 @@ class SubsetVerifyLagrangian:
         clf_result = get_polynomial_result(
             result, self.clf, coefficient_tol
         )
-        deactivated_cbfs_result = get_polynomial_result(
-            result, self.deactivated_cbfs, coefficient_tol
+        deactivated_cbfs_result = (
+            get_polynomial_result(
+                result, self.deactivated_cbfs, coefficient_tol
+            )
+            if self.deactivated_cbfs is not None
+            else None
         )
         ball_result = get_polynomial_result(
             result, self.ball, coefficient_tol
@@ -120,20 +124,20 @@ class SubsetVerifyLagrangianDegree:
     only difference is that here we are defining array of Degree
     objects instead of array of polynomials.
     """
-    lambda_y: np.ndarray
-    xi_y: np.ndarray
-    activated_cbfs: np.ndarray
+    lambda_y: List[List[Degree]]
+    xi_y: List[Degree]
+    activated_cbfs: List[Degree]
     clf: Degree
-    deactivated_cbfs: np.ndarray
+    deactivated_cbfs: Optional[List[Degree]]
     ball: Degree
-    state_eq_constraints: Optional[np.ndarray]
+    state_eq_constraints: Optional[List[Degree]]
     
     def to_lagrangians(
         self,
         prog: solvers.MathematicalProgram,
         x: sym.Variables,
-        y_full: np.ndarray,
-        c_full: np.ndarray,
+        y_sets: np.ndarray,
+        c_sets: np.ndarray,
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         lagrangian_lambda_y: Optional[np.ndarray] = None,
@@ -169,26 +173,153 @@ class SubsetVerifyLagrangianDegree:
             cdi = [c1, c2, ...,ci-1, ci+1, ..., cq, c_ball]
             c_ball = [c1, c2, c3, ..., cq]
         """
-        assert self.lambda_y.shape[0] == self.xi_y.shape[0]
-        assert y_full.shape[0] == self.lambda_y.shape[0] + 1
-        assert c_full.shape[0] == self.deactivated_cbfs.shape[0] + 1
+        assert len(self.lambda_y) == len(self.xi_y)
+        assert y_sets.shape[0] == len(self.lambda_y) + 1
+        if self.deactivated_cbfs is not None:
+            assert c_sets.shape[0] == len(self.deactivated_cbfs) + 2
+        else:
+            assert c_sets.shape[0] == 2
         
-        lambda_y_lagrangian = np.array([
-            to_lagrangian_impl(
-                prog=prog,
-                x=x,
-                y=y_full[i],
-                c=c_full[-1],
+        lambda_y_lagrangians  = np.empty(
+            shape=(len(self.lambda_y), len(self.lambda_y[0])), 
+            dtype=object
+            )
+        if lagrangian_lambda_y is not None:
+            assert lagrangian_lambda_y.shape == self.lambda_y.shape
+        for i in range(len(self.lambda_y)):
+            lambda_y_lagrangians[i] = to_lagrangian_impl(
+                prog,
+                x,
+                y=y_sets[i],
+                c=c_sets[-1],
                 sos_type=sos_type,
                 is_sos=False,
                 degree=self.lambda_y[i],
-                lagrangian=lagrangian_lambda_y[i]
+                lagrangian=(
+                    lagrangian_lambda_y[i] 
+                    if lagrangian_lambda_y is not None
+                    else None)
+            )
+        
+        if lagrangian_xi_y is not None:
+            assert lagrangian_xi_y.shape[0] == len(self.xi_y)
+        xi_y_lagrangians = np.empty(shape=(len(self.xi_y),), dtype=object)
+        for i in range(len(self.xi_y)):
+            xi_y_lagrangians[i] = to_lagrangian_impl(
+                prog,
+                x,
+                y=y_sets[i],
+                c=c_sets[-1],
+                sos_type=sos_type,
+                is_sos=False,
+                degree=self.xi_y[i],
+                lagrangian=(
+                    lagrangian_xi_y[i] 
+                    if lagrangian_xi_y is not None
+                    else None)
+            )
+        
+        if lagrangian_activated_cbfs is not None:
+            assert lagrangian_activated_cbfs.shape[0] == len(self.activated_cbfs)
+        activated_cbfs_lagrangians = np.empty(
+            shape=(len(self.activated_cbfs),),
+            dtype=object
+            )
+        for i in range(len(self.activated_cbfs)):
+            activated_cbfs_lagrangians[i] = to_lagrangian_impl(
+                prog,
+                x,
+                y=y_sets[-1],
+                c=c_sets[-1],
+                sos_type=sos_type,
+                is_sos=True,
+                degree=self.activated_cbfs[i],
+                lagrangian=(
+                    lagrangian_activated_cbfs[i] 
+                    if lagrangian_activated_cbfs is not None
+                    else None)
+            )
+
+        clf_lagrangian = to_lagrangian_impl(
+            prog,
+            x,
+            y=y_sets[-1],
+            c=c_sets[-1],
+            sos_type=sos_type,
+            is_sos=True,
+            degree=self.clf,
+            lagrangian=lagrangian_clf
+        )
+
+        if self.deactivated_cbfs is not None:
+            if lagrangian_deactivated_cbfs is not None:
+                assert lagrangian_deactivated_cbfs.shape[0] == len(self.deactivated_cbfs)
+            deactivated_cbfs_lagrangians = np.empty(
+                shape=len(self.deactivated_cbfs,),
+                dtype=object
                 )
-            for i in range(self.lambda_y.shape[0])
-        ])
-
-
-
+            for i in range(len(self.deactivated_cbfs)):
+                deactivated_cbfs_lagrangians[i] = to_lagrangian_impl(
+                    prog,
+                    x,
+                    y=y_sets[-1],
+                    c=c_sets[i],
+                    sos_type=sos_type,
+                    is_sos=False,
+                    degree=self.deactivated_cbfs[i],
+                    lagrangian=(
+                        lagrangian_deactivated_cbfs[i] 
+                        if lagrangian_deactivated_cbfs is not None
+                        else None)
+                )
+        else:
+            deactivated_cbfs_lagrangians = None
+        
+        ball_lagrangian = to_lagrangian_impl(
+            prog,
+            x,
+            y=y_sets[-1],
+            c=c_sets[-2],
+            sos_type=sos_type,
+            is_sos=False,
+            degree=self.ball,
+            lagrangian=lagrangian_ball
+        )
+        
+        if self.state_eq_constraints is not None:
+            if lagrangian_state_eq_constraints is not None:
+                assert (lagrangian_state_eq_constraints.shape
+                        ) == self.state_eq_constraints.shape
+            state_eq_constraints_lagrangians = np.empty(
+                shape=(len(self.state_eq_constraints),),
+                dtype=object
+            )
+            for i in range(len(self.state_eq_constraints)):
+                state_eq_constraints_lagrangians[i] = to_lagrangian_impl(
+                    prog,
+                    x,
+                    y=y_sets[-1],
+                    c=c_sets[-1],
+                    sos_type=sos_type,
+                    is_sos=False,
+                    degree=self.state_eq_constraints[i],
+                    lagrangian=(
+                        lagrangian_state_eq_constraints[i] 
+                        if lagrangian_state_eq_constraints is not None
+                        else None)
+                )
+        else:
+            state_eq_constraints_lagrangians = None
+        
+        return SubsetVerifyLagrangian(
+            lambda_y=lambda_y_lagrangians,
+            xi_y=xi_y_lagrangians,
+            activated_cbfs=activated_cbfs_lagrangians,
+            clf=clf_lagrangian,
+            deactivated_cbfs=deactivated_cbfs_lagrangians,
+            ball=ball_lagrangian,
+            state_eq_constraints=state_eq_constraints_lagrangians
+        )
 
 
 @dataclass
@@ -565,7 +696,7 @@ class CompatibleClfCbfInRange:
         xi: np.ndarray,
         lambda_mat: np.ndarray,
         lagrangians: CompatibilityInRangeLagragians,
-        sos_type: solvers.MathematicalProgram.NonnegativePolynomial
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos
     ) -> sym.Polynomial:
         """
         This function only adds the constraint to verify the compatibility
@@ -671,7 +802,227 @@ class CompatibleClfCbfInRange:
             else None
             )
         return lagrangians_result
+
+
+class CompatibleClfCbfInSubset:
+    def __init__(
+        self,
+        x: np.ndarray,
+        sys_dyn_f: np.ndarray,
+        sys_dyn_g: np.ndarray,
+        subset: UnionSubset,
+        Au: Optional[np.ndarray],
+        bu: Optional[np.ndarray],
+        state_eq_constraints: Optional[np.ndarray]
+    ):
+        self.sys_dyn_f = sys_dyn_f
+        self.sys_dyn_g = sys_dyn_g
+        self.subset = subset
+        assert (Au is None) == (bu is None)
+        with_control_limits = False
+        control_limit_size = None
+        if Au is not None:
+            assert Au.shape[1] == sys_dyn_g.shape[1]
+            assert Au.shape[0] == bu.shape[0]
+            with_control_limits = True
+            control_limit_size = Au.shape[0]
+        self.Au = Au
+        self.bu = bu
+        self.state_eq_constraints = state_eq_constraints
+
+        # creating necessary symbolic variables:
+        self.x = x
+        self.x_set = sym.Variables(self.x)
+        (
+            y_sets, c_sets, y_all, c_all
+        ) = self.subset.yc_sets_for_verification_wclf_outball(
+            with_control_input_limits=with_control_limits,
+            control_constriant_size=control_limit_size
+        )
+        self.y_all = y_all
+        self.c_all = c_all
+        self.xyc = np.concatenate([self.x, self.y_all.flatten(), self.c_all], axis=0)
+        self.xyc_set = sym.Variables(self.xyc)
+        self.y_sets = y_sets
+        self.c_sets = c_sets
     
+    def _add_compatible_in_subset_lagrangians(
+        self,
+        prog: solvers.MathematicalProgram,
+        xis: List[np.ndarray],
+        lambdas: List[np.ndarray],
+        lagrangians: SubsetVerifyLagrangian,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+    ) -> sym.Polynomial:
+        poly_one = sym.Polynomial(1)
+        poly = -poly_one
+
+        # add s0(x,y,c)*lambda_y - s1(x,y,c)*xi_y
+        for i in range(len(lambdas)):
+            y_i_sequare_poly = np.array(
+                [sym.Polynomial(sym.Monomial(each_y, 2))
+                 for each_y in self.y_all[i]]
+                 )
+            poly -= lagrangians.lambda_y[i].dot(y_i_sequare_poly.dot(lambdas[i]))
+            poly -= lagrangians.xi_y[i] * (y_i_sequare_poly.dot(xis[i]) + 1)
+        
+        # add s2(x,y,c)*activated_cbfs
+        for i in range(lagrangians.activated_cbfs.shape[0]):
+            poly -= lagrangians.activated_cbfs[i] * self.subset.activated[1+i]
+        # add s3(x,y,c)*clf
+        poly -= lagrangians.clf * self.subset.activated[0]
+        # add s4(x,y,c)*deactivated_cbfs
+        if lagrangians.deactivated_cbfs is not None:
+            for i in range(lagrangians.deactivated_cbfs.shape[0]):
+                poly -= lagrangians.deactivated_cbfs[i] * self.subset.deactivated[i]
+        # add s5(x,y,c)*ball
+        poly -= lagrangians.ball * self.subset.deactivated[-1]
+        # if we have state_eq_constraints:
+        if self.state_eq_constraints is not None:
+            for i in range(lagrangians.state_eq_constraints.shape[0]):
+                poly -= lagrangians.state_eq_constraints[i] * self.state_eq_constraints[i]
+
+        prog.AddSosConstraint(poly, sos_type)
+        return poly
+    
+    def _calc_xi_lambda(
+        self,
+        kappa_V: float,
+        kappa_h: List[float],
+        epsilon: float
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """
+        Compute
+        Λ(x) = [-∂b/∂x*g(x)]
+               [ ∂V/∂x*g(x)]
+               [        Au ]
+        ξ(x) = [ ∂b/∂x*f(x)+κ_b*b(x) - ϵ]
+               [-∂V/∂x*f(x)-κ_V*V(x) - ϵ]
+               [                 bu  - ϵ]
+        for all the activated CBFs and the CLF.
+        Different from the CompatibleClfCbfInRange, this function will
+        compute the ξ(x) and Λ(x) for all the activated CBFs and the CLF
+        one by one and then pack them in an array. Hence, the return
+        should be array of ξ(x)s and array of Λ(x)s for each activated
+        cbf.
+        Args:
+          V: The CLF function.
+          h: The CBF function.
+          kappa_V: The convergence rate for V(x) during evlove.
+          kappa_b: The kappa function for cbf h(x).
+          epsilon: The positive scalar for verification.
+                    If this is not None, then the computed ξ(x) = ξ(x)-ϵ 
+        Returns:
+          arrays of ξ(x)s and Λ(x)s above.
+        """
+        # the size of array of lambda and xi should be the number of
+        # activated cbfs (without the clf)
+        # Since rho-V is also counted as an activated poly in a subset
+        # object, then we should use the subset.activated.shape[0] - 1
+        # Also, during the iterations, since the first activated poly
+        # is the clf, we should start from the second activated poly in
+        # the subset.activated.
+        array_of_lambda_mat = []
+        array_of_xi_vec = []
+        for i in range(1, self.subset.activated.shape[0]):
+            lambda_rows = 2
+            if self.Au is not None:
+                lambda_rows += self.Au.shape[0]
+            lambda_cols = self.sys_dyn_g.shape[1]
+            lambda_mat = np.empty((lambda_rows, lambda_cols), dtype=object)
+            xi = np.empty((lambda_rows,), dtype=object)
+
+            # loading CBF constriants:
+            Lgh = lie_derivative(self.subset.activated[i], self.sys_dyn_g, self.x, 1)
+            Lfh = lie_derivative(self.subset.activated[i], self.sys_dyn_f, self.x, 1)
+            lambda_mat[0] = -Lgh
+            xi[0] = Lfh + kappa_h[i-1]*self.subset.activated[i]
+
+            # loading CLF constraints:
+            # noted that the first activated poly is not the original clf
+            # but the rho-V, so we should use -self.subset.activated[0] to 
+            # compute the CLF contents in lambda and xi.
+            LgV = lie_derivative(-self.subset.activated[0], self.sys_dyn_g, self.x, 1)
+            LfV = lie_derivative(-self.subset.activated[0], self.sys_dyn_f, self.x, 1)
+            lambda_mat[1] = LgV
+            xi[1] = -LfV - kappa_V*self.subset.activated[0]
+
+            # loading Au and bu:
+            if self.Au is not None:
+                lambda_mat[2:] = self.Au
+                xi[2:] = self.bu
+
+            # minus epsilon:
+            xi = xi - epsilon
+            
+            array_of_lambda_mat.append(lambda_mat)
+            array_of_xi_vec.append(xi)
+        
+        return array_of_xi_vec, array_of_lambda_mat
+
+    def construct_compatibility_in_subset_program(
+        self,
+        kappa_V: float,
+        kappa_h: List[float],
+        epsilon: float,
+        lagrangian_degrees: SubsetVerifyLagrangianDegree,
+        lagragians_sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+        compatible_sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
+    ) -> Tuple[
+        solvers.MathematicalProgram,
+        SubsetVerifyLagrangian
+    ]:
+        prog = solvers.MathematicalProgram()
+        prog.AddIndeterminates(self.xyc_set)
+        lagrangians = lagrangian_degrees.to_lagrangians(
+            prog=prog,
+            x=self.x_set,
+            y_sets=self.y_sets,
+            c_sets=self.c_sets,
+            sos_type=lagragians_sos_type
+        )
+        xis, lambdas = self._calc_xi_lambda(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            epsilon=epsilon
+        )
+        self._add_compatible_in_subset_lagrangians(
+            prog=prog,
+            xis=xis,
+            lambdas=lambdas,
+            lagrangians=lagrangians,
+            sos_type=compatible_sos_type
+        )
+        return (prog, lagrangians)
+
+    def verify_compatibility_in_subset(
+        self,
+        kappa_V: float,
+        kappa_h: List[float],
+        epsilon: float,
+        lagrangian_degrees: SubsetVerifyLagrangianDegree,
+        solver_id: Optional[solvers.SolverId] = None,
+        solver_options: Optional[solvers.SolverOptions] = None,
+        lagrangian_coefficient_tol: Optional[float] = None,
+        lagrangian_sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+        compatible_sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
+    ) -> Optional[SubsetVerifyLagrangian]:
+        prog, lagrangians = self.construct_compatibility_in_subset_program(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            epsilon=epsilon,
+            lagrangian_degrees=lagrangian_degrees,
+            lagragians_sos_type=lagrangian_sos_type,
+            compatible_sos_type=compatible_sos_type
+        )
+        result = solve_with_id(prog, solver_id, solver_options)
+        lagrangians_result = (
+            lagrangians.get_results(result, lagrangian_coefficient_tol)
+            if result.is_success()
+            else None
+            )
+        return lagrangians_result
+        
 
 @dataclass
 class StepOne:
@@ -821,7 +1172,5 @@ class StepTwo:
             variables=self.x
         )
         return non_empty_subset_01_vector, non_empty_subsets
-    
-
 
 

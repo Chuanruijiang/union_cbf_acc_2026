@@ -196,28 +196,6 @@ def test_step_one_verification():
     ])
     kappa_V = 0.1
     kappa_h = [0.1, 0.1]
-    
-    # specify compatibility lagragian degrees:
-    compatibility_lagrangian_degree = mut.CompatibilityInRangeLagragianDegrees(
-        lambda_y=[
-            Degree(x=2, y=0, c=0),
-            Degree(x=2, y=0, c=0)
-        ],
-        xi_y=Degree(x=2, y=0, c=0),
-        range_non_negative=[
-            Degree(x=2, y=2, c=0)
-        ],
-        range_strictly_positive=None,
-        state_eq_const=None
-    )
-    compatibility_lagrangian_degrees = [compatibility_lagrangian_degree] * h.shape[0]
-
-    # specify the ball inclusion lagragian degrees:
-    ball_inclusion_larangian_degree = mut.BallInclusionLagrangianDegree(
-        r_minus_xTx=Degree(x=2, y=0, c=0),
-        h=Degree(x=2, y=0, c=0)
-    )
-    ball_inclusion_lagrangian_degrees = [ball_inclusion_larangian_degree] * h.shape[0]
 
     # specify the step one:
     check = mut.StepOne(
@@ -227,14 +205,19 @@ def test_step_one_verification():
         sys_dyn_g=g,
         x=x,
         r_start=3,
-        r_lower_bound=0.1
+        r_lower_bound=0.1,
+        state_eq_constraints=None
     )
     
     eps_0 = check.step_one_verification(
         kappa_V=kappa_V,
         kappa_h=kappa_h,
-        ball_inclusion_lagrangian_degrees=ball_inclusion_lagrangian_degrees,
-        compatibility_lagrangian_degrees=compatibility_lagrangian_degrees
+        ball_inclusion_ball_x_degrees=[2, 2],
+        ball_inclusion_cbf_x_degrees=[2, 2],
+        qp_feasible_in_ball_lambda_y_x_degrees=[2, 2],
+        qp_feasible_in_ball_xi_y_x_degrees=[2, 2],
+        qp_feasible_in_ball_ball_x_degrees=[2, 2],
+        qp_feasible_in_ball_state_eq_x_degrees=None,
     )
 
     expected_ball_exist = True
@@ -340,7 +323,8 @@ def test_all_non_empty_subsets():
         sys_dyn_g=g,
         x=x,
         r_start=1,
-        r_lower_bound=0.1
+        r_lower_bound=0.1,
+        state_eq_constraints=None
     )
     non_empty_subsets_vectors,_ = step_two_check.all_non_empty_subsets_outside_ball()
     expected_non_empty_vectors = np.array([

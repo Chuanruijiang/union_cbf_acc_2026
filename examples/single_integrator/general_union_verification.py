@@ -1,24 +1,20 @@
 import os
 import sys
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
+sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
 
 import numpy as np
 import pydrake.symbolic as sym
 from compatible_clf_union_cbf.clf_union_cbf import(
     CompatibleClfUnionCbfs
 )
+from dynamics import system_dynamics
 
 
 def main():
+    # initialize system dynamics.
     x = sym.MakeVectorContinuousVariable(2, "x")
-    f = np.array([
-        sym.Polynomial(),
-        sym.Polynomial()
-    ])
-    g = np.array([
-        [sym.Polynomial(1), sym.Polynomial()],
-        [sym.Polynomial(), sym.Polynomial(1)],
-    ])
+    f, g = system_dynamics()
+    # Define the CLF and CBFs
     V = sym.Polynomial(x[0]**2 + x[1]**2)
     rho = 49
     cbf_center = np.array([
@@ -30,7 +26,7 @@ def main():
         sym.Polynomial(cbf_radiuses[i]**2 - (x - cbf_center[i]).dot(x - cbf_center[i]))
         for i in range(cbf_center.shape[0])
     ])
-    
+    # Define the parameters
     kappa_V = 0.1
     kappa_h = [1, 1]
 
@@ -64,9 +60,6 @@ def main():
 
     assert general_compatibility
     print("Test Passed")
-    
-
-
 
 if __name__ == "__main__":
     main()

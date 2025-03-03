@@ -1,0 +1,32 @@
+import numpy as np
+import pydrake.symbolic as sym
+from typing import Tuple
+
+def system_dynamics()->Tuple[np.ndarray, np.ndarray]:
+    """
+    This function defines the system dyanmics of a single integrator.
+    The system dynamics is:
+    ̇x₀ = u₀ ; ̇x₁ = u₁  
+    we can see that the state variables are not present in dynamics
+    for the single integrator.
+    """
+    f = np.array([
+        sym.Polynomial(),
+        sym.Polynomial()
+        ])
+    g = np.array([
+        [sym.Polynomial(1), sym.Polynomial()],
+        [sym.Polynomial(), sym.Polynomial(1)],
+        ])
+    return f, g
+
+def system_dynamics_forward(u: np.ndarray):
+    """
+    We can use this function when doing real time simulations
+    """
+    f = np.array([0, 0])
+    g = np.array([
+        [1, 0],
+        [0, 1]
+    ])
+    return f + g @ u

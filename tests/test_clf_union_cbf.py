@@ -328,6 +328,7 @@ def test_all_non_empty_subsets():
         r_lower_bound=0.1,
         state_eq_constraints=None,
         Au=None,
+        bu=None
     )
     non_empty_subsets_vectors,_ = step_two_check.all_non_empty_subsets_outside_ball()
     expected_non_empty_vectors = np.array([
@@ -415,7 +416,7 @@ def test_simplified_verification_step_two():
     kappa_h = [1.0, 1.0]
 
     check_step_two = mut.StepTwo(
-        clf=V,
+        clf=rho - V,
         cbfs=h,
         ball=sym.Polynomial(1 - x.dot(x)),
         sys_dyn_f=f,
@@ -441,6 +442,4 @@ def test_simplified_verification_step_two():
     )
 
     assert epsilon is not None
-
-
 

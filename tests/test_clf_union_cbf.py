@@ -206,7 +206,9 @@ def test_step_one_verification():
         x=x,
         r_start=3,
         r_lower_bound=0.1,
-        state_eq_constraints=None
+        state_eq_constraints=None,
+        Au=None,
+        bu=None
     )
     
     eps_0 = check.step_one_verification(
@@ -324,7 +326,8 @@ def test_all_non_empty_subsets():
         x=x,
         r_start=1,
         r_lower_bound=0.1,
-        state_eq_constraints=None
+        state_eq_constraints=None,
+        Au=None,
     )
     non_empty_subsets_vectors,_ = step_two_check.all_non_empty_subsets_outside_ball()
     expected_non_empty_vectors = np.array([
@@ -333,5 +336,111 @@ def test_all_non_empty_subsets():
         [1, 1, 1, 0]
     ])
     assert np.array_equal(non_empty_subsets_vectors, expected_non_empty_vectors)
+
+def test_simplified_verification_step_one():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    f = np.array([
+        sym.Polynomial(),
+        sym.Polynomial()
+    ])
+    g = np.array([
+        [sym.Polynomial(1), sym.Polynomial()],
+        [sym.Polynomial(), sym.Polynomial(1)],
+    ])
+    V = sym.Polynomial(x[0]**2 + x[1]**2)
+    rho = 49
+    cbf_center = np.array([
+        [3, 0],
+        [-5, 0]
+    ])
+    cbf_radiuses = np.array([5, 5])
+    h = np.array([
+        sym.Polynomial(cbf_radiuses[i]**2 - (x - cbf_center[i]).dot(x - cbf_center[i]))
+        for i in range(cbf_center.shape[0])
+    ])
+    
+    kappa_V = 0.1
+    kappa_h = [1.0, 1.0]
+
+    check_step_one = mut.StepOne(
+        clf=V,
+        cbfs=h,
+        sys_dyn_f=f,
+        sys_dyn_g=g,
+        x=x,
+        r_start=1,
+        r_lower_bound=0.1,
+        state_eq_constraints=None,
+        Au=None,
+        bu=None
+    )
+    (
+        simplified_step_one_compatibility
+    ) = check_step_one.simplififed_step_one_verification(
+        kappa_V=kappa_V,
+        kappa_h=kappa_h[0],
+        ball_inclusion_ball_x_degree=2,
+        ball_inclusion_cbf_x_degree=2,
+        qp_feasible_in_ball_lambda_y_x_degree=2,
+        qp_feasible_in_ball_xi_y_x_degree=2,
+        qp_feasible_in_ball_ball_x_degree=2,
+        qp_feasible_in_ball_state_eq_x_degree=None
+    )
+
+    assert simplified_step_one_compatibility
+
+def test_simplified_verification_step_two():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    f = np.array([
+        sym.Polynomial(),
+        sym.Polynomial()
+    ])
+    g = np.array([
+        [sym.Polynomial(1), sym.Polynomial()],
+        [sym.Polynomial(), sym.Polynomial(1)],
+    ])
+    V = sym.Polynomial(x[0]**2 + x[1]**2)
+    rho = 49
+    cbf_center = np.array([
+        [3, 0],
+        [-5, 0]
+    ])
+    cbf_radiuses = np.array([5, 5])
+    h = np.array([
+        sym.Polynomial(cbf_radiuses[i]**2 - (x - cbf_center[i]).dot(x - cbf_center[i]))
+        for i in range(cbf_center.shape[0])
+    ])
+    
+    kappa_V = 0.1
+    kappa_h = [1.0, 1.0]
+
+    check_step_two = mut.StepTwo(
+        clf=V,
+        cbfs=h,
+        ball=sym.Polynomial(1 - x.dot(x)),
+        sys_dyn_f=f,
+        sys_dyn_g=g,
+        x=x,
+        r_start=0.1,
+        r_lower_bound=0.01,
+        state_eq_constraints=None,
+        Au=None,
+        bu=None
+    )
+    epsilon = check_step_two.simplified_step_two_verification(
+        activated_cbf_x_degree=2,
+        lambda_y_x_degrees=[2, 2],
+        xi_y_x_degree=2,
+        deactivated_cbfs_common_degree=2,
+        ball_x_degree=2,
+        clf_x_degree=2,
+        state_eq_x_degrees=None,
+        rho=rho,
+        kappa_V=kappa_V,
+        kappa_h=kappa_h
+    )
+
+    assert epsilon is not None
+
 
 

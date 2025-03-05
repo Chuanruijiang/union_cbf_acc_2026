@@ -457,7 +457,7 @@ class CompatibilityInRangeLagragianDegrees:
         prog: solvers.MathematicalProgram,
         x: sym.Variables,
         y: sym.Variables,
-        c: sym.Variables,
+        c_sets: Optional[np.ndarray],
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         lagrangian_lambda_y: Optional[np.ndarray] = None,
@@ -466,19 +466,30 @@ class CompatibilityInRangeLagragianDegrees:
         lagrangian_range_strictly_positive: Optional[List[np.ndarray]] = None,
         lagrangian_state_eq_const: Optional[List[np.ndarray]] = None,
     ) -> CompatibilityInRangeLagragians:
+        """
+        If we have multiple strictly positive polynomials, we should use different
+        c_variables for lagrangians in front of different positive polynomials. 
+        Assume we have q1,...qm as strictly positive polynomials, then the c_set
+        should be:
+        c_set = [c_1, c_2, ..., c_m, c_all]
+        which is an array of sym.Variables. Each c_i is an array of sym.Variables
+        """
         assert isinstance(self.lambda_y, list)
         assert isinstance(self.xi_y, Degree)
         if self.range_non_negative is not None:
             assert isinstance(self.range_non_negative, list)
         if self.range_strictly_positive is not None:
             assert isinstance(self.range_strictly_positive, list)
+            assert c_sets.shape[0] == len(self.range_strictly_positive) + 1
+        else:
+            assert c_sets is None
         if self.state_eq_const is not None:
             assert isinstance(self.state_eq_const, list)
         lambda_y_lagragian = to_lagrangian_impl(
             prog=prog,
             x=x,
-            y=y,
-            c=c,
+            y=None,
+            c=(c_sets[-1] if c_sets is not None else None),
             sos_type=sos_type,
             is_sos=False,
             degree=self.lambda_y,
@@ -487,8 +498,8 @@ class CompatibilityInRangeLagragianDegrees:
         xi_y_lagrangian = to_lagrangian_impl(
             prog=prog,
             x=x,
-            y=y,
-            c=c,
+            y=None,
+            c=(c_sets[-1] if c_sets is not None else None),
             sos_type=sos_type,
             is_sos=False,
             degree=self.xi_y,
@@ -499,7 +510,7 @@ class CompatibilityInRangeLagragianDegrees:
                 prog=prog,
                 x=x,
                 y=y,
-                c=c,
+                c=(c_sets[-1] if c_sets is not None else None),
                 sos_type=sos_type,
                 is_sos=True,
                 degree=self.range_non_negative,
@@ -509,16 +520,22 @@ class CompatibilityInRangeLagragianDegrees:
             else None
         )
         range_strictly_positive_lagrangians = (
-            to_lagrangian_impl(
-                prog=prog,
-                x=x,
-                y=y,
-                c=c,
-                sos_type=sos_type,
-                is_sos=False,
-                degree=self.range_strictly_positive,
-                lagrangian=lagrangian_range_strictly_positive
-            )
+            np.array([
+                to_lagrangian_impl(
+                    prog=prog,
+                    x=x,
+                    y=y,
+                    c=c_sets[i],
+                    sos_type=sos_type,
+                    is_sos=False,
+                    degree=self.range_strictly_positive[i],
+                    lagrangian=(
+                        lagrangian_range_strictly_positive[i]
+                        if lagrangian_range_strictly_positive is not None
+                        else None)
+                )
+                for i in range(len(self.range_strictly_positive))
+            ])
             if self.range_strictly_positive is not None
             else None
         )
@@ -527,7 +544,7 @@ class CompatibilityInRangeLagragianDegrees:
                 prog=prog,
                 x=x,
                 y=y,
-                c=c,
+                c=(c_sets[-1] if c_sets is not None else None),
                 sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
                 is_sos=False,
                 degree=self.state_eq_const,
@@ -614,11 +631,21 @@ class CompatibleClfCbfInRange:
         )
         self.x_set = sym.Variables(self.x)
         self.y_set = sym.Variables(self.y)
-        self.c_set = (
-            sym.Variables(self.c)
-            if range_strictly_positive is not None
-            else None
-        )
+        
+        #computing c_sets:
+        if range_strictly_positive is not None:
+            c_sets = np.empty(shape=(range_strictly_positive.shape[0]+1,), dtype=object)
+            c_sets[-1] = sym.Variables(self.c)
+            for i in range(range_strictly_positive.shape[0]):
+                c_i = np.delete(self.c, i, axis=0)
+                if c_i.size == 0:
+                    pass
+                else:
+                    c_sets[i] = sym.Variables(c_i)
+            self.c_sets = c_sets
+        else:   
+            self.c_sets = None
+
         self.xy_set = sym.Variables(np.concatenate([self.x, self.y], axis=0))
         self.xyc_set = (
             sym.Variables(np.concatenate([self.x, self.y, self.c], axis=0))
@@ -758,7 +785,7 @@ class CompatibleClfCbfInRange:
             prog=prog,
             x=self.x_set,
             y=self.y_set,
-            c=self.c_set,
+            c_sets=self.c_sets,
             sos_type=lagrangian_sos_type
         )
         xi, lambda_mat = self._calc_xi_lambda(
@@ -787,6 +814,7 @@ class CompatibleClfCbfInRange:
         lagrangian_sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         compatible_sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> Optional[CompatibilityInRangeLagragians]:
+
         prog, lagrangians = self.construct_compatibility_sos_program(
             kappa_V=kappa_V,
             kappa_h=kappa_h,
@@ -1037,6 +1065,8 @@ class StepOne:
     r_start: float
     r_lower_bound: float
     state_eq_constraints: Optional[np.ndarray]
+    Au: Optional[np.ndarray]
+    bu: Optional[np.ndarray]
 
     def _create_ball_inclusion_lagrangian_degrees(
         self,
@@ -1100,7 +1130,7 @@ class StepOne:
         cbf: sym.Polynomial,
         kappa_V: float,
         kappa_h: float,
-        lagragian_degree: CompatibilityInRangeLagragianDegrees
+        lagrangian_degree: CompatibilityInRangeLagragianDegrees
     ) -> bool:
         ball = sym.Polynomial(r - self.x.dot(self.x))
         compatibility_obj = CompatibleClfCbfInRange(
@@ -1111,15 +1141,15 @@ class StepOne:
             h=cbf,
             range_non_negative=np.array([ball]),
             range_strictly_positive=None,
-            state_eq_const=None,
-            Au=None,
-            bu=None
+            state_eq_const=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
         )
         lagrangians = compatibility_obj.verify_compatibility(
             kappa_V=kappa_V,
             kappa_h=kappa_h,
             epsilon=0,
-            lagrangian_degrees=lagragian_degree
+            lagrangian_degrees=lagrangian_degree
         )
         return lagrangians is not None
 
@@ -1187,7 +1217,7 @@ class StepOne:
                         cbf=self.cbfs[i],
                         kappa_V=kappa_V,
                         kappa_h=kappa_h[i],
-                        lagragian_degree=qp_feasible_in_ball_lagrangian_degrees[i]
+                        lagrangian_degree=qp_feasible_in_ball_lagrangian_degrees[i]
                     )
                     if compatible:
                         return current_r
@@ -1197,6 +1227,68 @@ class StepOne:
         # if the while loop finishes, this means we cannot find a valid r, meaning that we
         # cannot find a valid ball that is included by a cbf and the clf-cbf is compatible in it.
         return None
+
+    def simplififed_step_one_verification(
+        self,
+        kappa_V: float,
+        kappa_h: float,
+        ball_inclusion_ball_x_degree: int,
+        ball_inclusion_cbf_x_degree: int,
+        qp_feasible_in_ball_lambda_y_x_degree: int,
+        qp_feasible_in_ball_xi_y_x_degree: int,
+        qp_feasible_in_ball_ball_x_degree: int,
+        qp_feasible_in_ball_state_eq_x_degree: Optional[List[int]]
+    ) -> Optional[float]:
+        """
+        For the simplified verification, the first step is to verify the
+        inclusion of a ball with radius r in the first cbf h_1(x). Hence,
+        in this function, the kappa_h and lagragian degrees are all about
+        the first single CBF.
+        """
+        assert isinstance(kappa_h, float)
+        assert isinstance(ball_inclusion_ball_x_degree, int)
+        assert isinstance(ball_inclusion_cbf_x_degree, int)
+        assert isinstance(qp_feasible_in_ball_lambda_y_x_degree, int)
+        assert isinstance(qp_feasible_in_ball_xi_y_x_degree, int)
+        assert isinstance(qp_feasible_in_ball_ball_x_degree, int)
+        if (self.state_eq_constraints is not None
+            ) and (qp_feasible_in_ball_state_eq_x_degree is not None):
+            assert len(qp_feasible_in_ball_state_eq_x_degree
+                ) == self.state_eq_constraints.shape[0]
+        
+        current_r = self.r_start
+        while current_r >= self.r_lower_bound:
+            ball_inclusion_lagrangian_degrees = BallInclusionLagrangianDegree(
+                r_minus_xTx=Degree(x=ball_inclusion_ball_x_degree, y=0, c=0),
+                h=Degree(x=ball_inclusion_cbf_x_degree, y=0, c=0)
+            )
+            inclusion = self._ball_included_by_cbf(
+                r=current_r,
+                cbf=self.cbfs[0],
+                lagrangian_degree=ball_inclusion_lagrangian_degrees
+                )
+            if inclusion:
+                qp_feasible_in_ball_lagrangian_degrees = CompatibilityInRangeLagragianDegrees(
+                    lambda_y=[
+                        Degree(x=qp_feasible_in_ball_lambda_y_x_degree, y=0, c=0)
+                        for _ in range(self.sys_dyn_g.shape[1])
+                    ],
+                    xi_y=Degree(x=qp_feasible_in_ball_xi_y_x_degree, y=0, c=0),
+                    range_non_negative=[Degree(x=qp_feasible_in_ball_ball_x_degree, y=2, c=0)],
+                    range_strictly_positive=None,
+                    state_eq_const=None
+                )
+                compatible = self._qp_feasible_in_ball(
+                    r=current_r,
+                    cbf=self.cbfs[0],
+                    kappa_V=kappa_V,
+                    kappa_h=kappa_h,
+                    lagrangian_degree=qp_feasible_in_ball_lagrangian_degrees
+                )
+                if compatible:
+                    return current_r
+            current_r = current_r / 2
+        return None 
 
 
 @ dataclass
@@ -1214,6 +1306,8 @@ class StepTwo:
     r_start: float
     r_lower_bound: float
     state_eq_constraints: Optional[np.ndarray]
+    Au: Optional[np.ndarray]
+    bu: Optional[np.ndarray]
 
     def all_non_empty_subsets_outside_ball(
         self,
@@ -1344,6 +1438,62 @@ class StepTwo:
             state_eq_constraints=state_eq_degree
         )
 
+    def _create_compatible_in_range_lagrangian_degrees(
+        self,
+        activated_cbf_x_degree: int,
+        lambda_y_x_degrees: List[int],
+        xi_y_x_degree: int,
+        deactivated_cbfs_degrees: Optional[List[int]],
+        ball_x_degree: int,
+        clf_x_degree: int,
+        state_eq_x_degrees: Optional[List[int]]
+    ) -> CompatibilityInRangeLagragianDegrees:
+        assert len(lambda_y_x_degrees) == self.sys_dyn_g.shape[1]
+        
+        range_non_negative_lagrangian_degree = []
+        range_strictly_positive_lagrangian_degree = []
+
+        if deactivated_cbfs_degrees is not None:
+            ball_c_degree = 2
+            for i in range(len(deactivated_cbfs_degrees)):
+                range_strictly_positive_lagrangian_degree.append(
+                    Degree(x=deactivated_cbfs_degrees[i], y=2, c=2)
+                    )
+        else:
+            ball_c_degree = 0
+        
+        range_strictly_positive_lagrangian_degree.append(
+            Degree(x=ball_x_degree, y=2, c=ball_c_degree)
+        )
+        range_non_negative_lagrangian_degree.append(
+            Degree(x=activated_cbf_x_degree, y=2, c=2)
+        )
+        range_non_negative_lagrangian_degree.append(
+            Degree(x=clf_x_degree, y=2, c=2)
+        )
+        lambda_y_lagrangian_degree = [
+            Degree(x=lambda_y_x_degrees[i], y=0, c=2)
+            for i in range(self.sys_dyn_g.shape[1])
+        ]
+        xi_y_lagrangian_degree = Degree(x=xi_y_x_degree, y=0, c=2)
+
+        if state_eq_x_degrees is not None:
+            assert len(state_eq_x_degrees) == self.state_eq_constraints.shape[0]
+            state_eq_lagrangian_degree = [
+                Degree(x=state_eq_x_degrees[i], y=2, c=2)
+                for i in range(len(state_eq_x_degrees))
+            ]
+        else:
+            state_eq_lagrangian_degree = None
+        
+        return CompatibilityInRangeLagragianDegrees(
+            lambda_y=lambda_y_lagrangian_degree,
+            xi_y=xi_y_lagrangian_degree,
+            range_non_negative=range_non_negative_lagrangian_degree,
+            range_strictly_positive=range_strictly_positive_lagrangian_degree,
+            state_eq_const=state_eq_lagrangian_degree
+        )
+        
     def verify_subset(
         self,
         subset: UnionSubset,
@@ -1368,6 +1518,54 @@ class StepTwo:
             lagrangian_degrees=lagrangian_degrees
         )
         return lagrangians is not None    
+
+    def verify_compatible_in_range(
+        self,
+        lagrangian_degrees: CompatibilityInRangeLagragianDegrees,
+        activated_cbf: sym.Polynomial,
+        deactivated_cbfs: Optional[np.ndarray],
+        rho: float,
+        kappa_V: float,
+        kappa_h: float,
+        epsilon: float
+    ) -> bool:
+        """
+        This function verifies the compatibility of h_i(x) in the following range:
+        {x | h_i(x)>=0, h_{i-1}(x) < 0,..., h_1(x) < 0, ρ - V(x)>= 0, ϵ₀² - xᵀx < 0}
+        According to the design of CompatibilityInRange class, it only accepts the
+        polynomial with strict positive and non-negative ranges. Hence, the activated
+        cbf and clf should be in the non-negative range, and the deactivated cbfs and
+        ball should be in the strictly positive range.
+        non-negative range: [h_i(x), ρ - V(x)]
+        strictly positive range: [-h_{i-1}(x), ..., -h_1(x), -ϵ₀² + xᵀx]
+        Noted that in this class, self.clf is ρ - V(x), and self.ball is ϵ₀² - xᵀx.
+        """
+        range_non_negative_polys = np.array([activated_cbf, self.clf])
+        range_strictly_positive_polys = (
+            np.concatenate([-deactivated_cbfs, -np.array([self.ball])], axis=0)
+            if deactivated_cbfs is not None
+            else -np.array([self.ball])
+        )
+
+        compatibility_obj = CompatibleClfCbfInRange(
+            x=self.x,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            V=rho - self.clf,
+            h=activated_cbf,
+            range_non_negative=range_non_negative_polys,
+            range_strictly_positive=range_strictly_positive_polys,
+            state_eq_const=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
+        )
+        lagrangians = compatibility_obj.verify_compatibility(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            epsilon=epsilon,
+            lagrangian_degrees=lagrangian_degrees
+        )
+        return lagrangians is not None
 
     def step_two_verification(
         self,
@@ -1421,6 +1619,68 @@ class StepTwo:
                 return eps_current
         return None
 
+    def simplified_step_two_verification(
+        self,
+        activated_cbf_x_degree: int,
+        lambda_y_x_degrees: List[int],
+        xi_y_x_degree: int,
+        deactivated_cbfs_common_degree: Optional[int],
+        ball_x_degree: int,
+        clf_x_degree: int,
+        state_eq_x_degrees: Optional[List[int]],
+        rho: float,
+        kappa_V: float,
+        kappa_h: List[float],
+    ) -> Optional[float]:
+        
+        assert len(lambda_y_x_degrees) == self.sys_dyn_g.shape[1]
+        if state_eq_x_degrees is not None:
+            assert len(state_eq_x_degrees) == self.state_eq_constraints.shape[0]
+
+        eps_current = self.r_start
+        feasible_in_range = True
+        while eps_current >= self.r_lower_bound:
+            for i in range(self.cbfs.shape[0]):
+                activated_cbf = self.cbfs[i]
+                deactivated_cbfs = (
+                    self.cbfs[:i]
+                    if i > 0
+                    else None
+                )
+                deactivated_cbfs_degrees = (
+                    [deactivated_cbfs_common_degree] * deactivated_cbfs.shape[0]
+                    if i > 0
+                    else None
+                )
+
+                lagrangian_degrees = self._create_compatible_in_range_lagrangian_degrees(
+                    activated_cbf_x_degree=activated_cbf_x_degree,
+                    lambda_y_x_degrees=lambda_y_x_degrees,
+                    xi_y_x_degree=xi_y_x_degree,
+                    deactivated_cbfs_degrees=deactivated_cbfs_degrees,
+                    ball_x_degree=ball_x_degree,
+                    clf_x_degree=clf_x_degree,
+                    state_eq_x_degrees=state_eq_x_degrees
+                )
+                current_is_feasible = self.verify_compatible_in_range(
+                    lagrangian_degrees=lagrangian_degrees,
+                    activated_cbf=activated_cbf,
+                    deactivated_cbfs=deactivated_cbfs,
+                    rho=rho,
+                    kappa_V=kappa_V,
+                    kappa_h=kappa_h[i],
+                    epsilon=eps_current
+                )
+                if not current_is_feasible:
+                    feasible_in_range = False
+                    break
+            if feasible_in_range:
+                return eps_current
+            else:
+                eps_current = eps_current / 2
+        return None                        
+                
+        
 
 class CompatibleClfUnionCbfs:
     def __init__(
@@ -1430,7 +1690,9 @@ class CompatibleClfUnionCbfs:
         sys_dyn_g: np.ndarray,
         clf: sym.Polynomial,
         cbfs: np.ndarray,
-        state_eq_constraints: Optional[np.ndarray]
+        state_eq_constraints: Optional[np.ndarray],
+        Au: Optional[np.ndarray],
+        bu: Optional[np.ndarray]
     ):
         self.x = x
         self.sys_dyn_f = sys_dyn_f
@@ -1438,6 +1700,8 @@ class CompatibleClfUnionCbfs:
         self.clf = clf
         self.cbfs = cbfs
         self.state_eq_constraints = state_eq_constraints
+        self.Au = Au
+        self.bu = bu
     
     def general_union_verification(
         self,
@@ -1475,7 +1739,9 @@ class CompatibleClfUnionCbfs:
             x=self.x,
             r_start=epsilon0_start,
             r_lower_bound=epsilon0_lower_bound,
-            state_eq_constraints=self.state_eq_constraints
+            state_eq_constraints=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
         )
 
         epsilon0 = step_one.step_one_verification(
@@ -1503,7 +1769,9 @@ class CompatibleClfUnionCbfs:
             x=self.x,
             r_start=epsilon_start,
             r_lower_bound=epsilon_lower_bound,
-            state_eq_constraints=self.state_eq_constraints
+            state_eq_constraints=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
         )
 
         epsilon = step_two.step_two_verification(
@@ -1520,7 +1788,91 @@ class CompatibleClfUnionCbfs:
             print("Step two passed! epsilon is: ", epsilon)
         
         return True
+    
+    def simplified_union_verification(
+        self,
+        epsilon0_start: float,
+        epsilon0_lower_bound: float,
+        epsilon_start: float,
+        epsilon_lower_bound: float,
+        kappa_V: float,
+        rho: float,
+        kappa_h: List[float],
+        ball_inclusion_ball_x_degree: int,
+        ball_inclusion_cbf_x_degree: int,
+        qp_feasible_in_ball_lambda_y_x_degree: int,
+        qp_feasible_in_ball_xi_y_x_degree: int,
+        qp_feasible_in_ball_ball_x_degree: int,
+        qp_feasible_in_ball_state_eq_x_degree: Optional[List[int]],
+        activated_cbf_x_degree: int,
+        lambda_y_x_degrees: List[int],
+        xi_y_x_degree: int,
+        deactivated_cbfs_common_degree: Optional[int],
+        step_two_ball_x_degree: int,
+        clf_x_degree: int,
+        state_eq_x_degrees: Optional[List[int]],
+    ) -> bool:
+        step_one = StepOne(
+            clf=self.clf,
+            cbfs=self.cbfs,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            x=self.x,
+            r_start=epsilon0_start,
+            r_lower_bound=epsilon0_lower_bound,
+            state_eq_constraints=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
+        )
+
+        epsilon0 = step_one.simplififed_step_one_verification(
+            kappa_V=kappa_V,
+            kappa_h=kappa_h[0],
+            ball_inclusion_ball_x_degree=ball_inclusion_ball_x_degree,
+            ball_inclusion_cbf_x_degree=ball_inclusion_cbf_x_degree,
+            qp_feasible_in_ball_lambda_y_x_degree=qp_feasible_in_ball_lambda_y_x_degree,
+            qp_feasible_in_ball_xi_y_x_degree=qp_feasible_in_ball_xi_y_x_degree,
+            qp_feasible_in_ball_ball_x_degree=qp_feasible_in_ball_ball_x_degree,
+            qp_feasible_in_ball_state_eq_x_degree=qp_feasible_in_ball_state_eq_x_degree
+        )
+        if epsilon0 is None:
+            print("Step one failed. Could not find a valide eps_0")
+            return False
+        else:
+            print("Step one passed! epsilon0 is: ", epsilon0)
         
+        step_two = StepTwo(
+            clf=(rho - self.clf),
+            cbfs=self.cbfs,
+            ball=sym.Polynomial(epsilon0**2 - self.x.dot(self.x)),
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            x=self.x,
+            r_start=epsilon_start,
+            r_lower_bound=epsilon_lower_bound,
+            state_eq_constraints=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
+        )
+
+        epsilon = step_two.simplified_step_two_verification(
+            activated_cbf_x_degree=activated_cbf_x_degree,
+            lambda_y_x_degrees=lambda_y_x_degrees,
+            xi_y_x_degree=xi_y_x_degree,
+            deactivated_cbfs_common_degree=deactivated_cbfs_common_degree,
+            ball_x_degree=step_two_ball_x_degree,
+            clf_x_degree=clf_x_degree,
+            state_eq_x_degrees=state_eq_x_degrees,
+            rho=rho,
+            kappa_V=kappa_V,
+            kappa_h=kappa_h
+        )
+        if epsilon is None:
+            print("Step two failed. Could not find a valide eps")
+            return False
+        else:
+            print("Step two passed! epsilon is: ", epsilon)
+            return True
 
     
 

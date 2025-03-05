@@ -9,7 +9,6 @@ from compatible_clf_union_cbf.clf_union_cbf import(
 )
 from dynamics import system_dynamics
 
-
 def main():
     # initialize system dynamics.
     x = sym.MakeVectorContinuousVariable(2, "x")
@@ -18,8 +17,8 @@ def main():
     V = sym.Polynomial(x[0]**2 + x[1]**2)
     rho = 49
     cbf_center = np.array([
-        [-5, 0],
-        [3, 0]
+        [3, 0],
+        [-5, 0]
     ])
     cbf_radiuses = np.array([5, 5])
     h = np.array([
@@ -28,9 +27,9 @@ def main():
     ])
     # Define the parameters
     kappa_V = 0.1
-    kappa_h = [1, 1]
+    kappa_h = [1.0, 1.0]
 
-    compatibile_object = CompatibleClfUnionCbfs(
+    compatible_object = CompatibleClfUnionCbfs(
         x=x,
         sys_dyn_f=f,
         sys_dyn_g=g,
@@ -41,7 +40,7 @@ def main():
         bu=None
     )
 
-    general_compatibility = compatibile_object.general_union_verification(
+    simplified_compatibility = compatible_object.simplified_union_verification(
         epsilon0_start=1,
         epsilon0_lower_bound=0.1,
         epsilon_start=0.1,
@@ -49,19 +48,25 @@ def main():
         kappa_V=kappa_V,
         rho=rho,
         kappa_h=kappa_h,
-        ball_inclusion_ball_x_degrees=[2,2],
-        ball_inclusion_cbf_x_degrees=[2,2],
-        qp_feasible_in_ball_lambda_y_x_degrees=[2, 2],
-        qp_feasible_in_ball_xi_y_x_degrees=[2, 2],
-        qp_feasible_in_ball_ball_x_degrees=[2, 2],
-        qp_feasible_in_ball_state_eq_x_degrees=None,
-        compatible_in_subset_x_degree=2,
-        compatible_in_subset_y_degree=2,
-        compatible_in_subset_c_degree=2,
+        ball_inclusion_ball_x_degree=2,
+        ball_inclusion_cbf_x_degree=2,
+        qp_feasible_in_ball_lambda_y_x_degree=2,
+        qp_feasible_in_ball_xi_y_x_degree=2,
+        qp_feasible_in_ball_ball_x_degree=2,
+        qp_feasible_in_ball_state_eq_x_degree=None,
+        activated_cbf_x_degree=2,
+        lambda_y_x_degrees=[2, 2],
+        xi_y_x_degree=2,
+        deactivated_cbfs_common_degree=2,
+        step_two_ball_x_degree=2,
+        clf_x_degree=2,
+        state_eq_x_degrees=None
     )
 
-    assert general_compatibility
-    print("Test Passed")
+    assert simplified_compatibility
+    print("Simplified union verification is successful.")
 
 if __name__ == "__main__":
     main()
+
+    

@@ -1383,17 +1383,14 @@ class StepTwo:
         range_strictly_positive_lagrangian_degree = []
 
         if deactivated_cbfs_degrees is not None:
-            ball_c_degree = 2
             for i in range(len(deactivated_cbfs_degrees)):
                 range_strictly_positive_lagrangian_degree.append(
                     Degree(x=deactivated_cbfs_degrees[i], y=2, c=2)
                     )
         else:
-            ball_c_degree = 0
-        
-        range_strictly_positive_lagrangian_degree.append(
-            Degree(x=ball_x_degree, y=2, c=ball_c_degree)
-        )
+            range_strictly_positive_lagrangian_degree.append(
+                Degree(x=ball_x_degree, y=2, c=0)
+            )
         range_non_negative_lagrangian_degree.append(
             Degree(x=activated_cbf_x_degree, y=2, c=2)
         )
@@ -1471,7 +1468,7 @@ class StepTwo:
         """
         range_non_negative_polys = np.array([activated_cbf, self.clf])
         range_strictly_positive_polys = (
-            np.concatenate([-deactivated_cbfs, -np.array([self.ball])], axis=0)
+            -deactivated_cbfs
             if deactivated_cbfs is not None
             else -np.array([self.ball])
         )

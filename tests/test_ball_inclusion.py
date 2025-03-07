@@ -1,13 +1,9 @@
-import os
-import sys
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
-
 import numpy as np
 import pydrake.symbolic as sym
 import compatible_clf_union_cbf.ball_inclusion as bi
 
 
-def main():
+def test_ball_inclusion():
     x = sym.MakeVectorContinuousVariable(2, "x")
     radius = 1
     h_center = np.array([3, 0])
@@ -26,6 +22,3 @@ def main():
     )
 
     assert check_result is True
-
-if __name__ == "__main__":
-    main()

@@ -2,6 +2,21 @@ import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 
+"""
+This file includes the bilinear alternation of a CLF synthesis. 
+This is the problem formulation:
+Given a set of points x1,...,xn, find a CLF V(x) such that:
+1. V(x) is an SOS polynomial that goes through the origin, V(x=0)=0.
+2. The sublevel set {x | V(x) <= 1} contains all the points x1,...,xn.
+3. For all x in the sublevel set, there exists a u such that 
+        dVdx * f(x) + dVdx * g(x) * u <= -kappa * V.
+4. The superlevel set {x | V(x) >= 1} should include a ball with radius r.
+
+From the SOS perspective, we have the following SOS constraints:
+1. The sublevel set contains the ball:
+    
+"""
+
 
 class ClfConstraint:
     """

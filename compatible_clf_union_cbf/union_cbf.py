@@ -342,7 +342,7 @@ class UnionCBF:
         Finally, if outside_ball is True, we should also provide the lagrangian 
         x degrees for the ball polynomial. The ball polynomial is always deactivated.
         """
-        # the ball poly should be r-x^Tx
+        # if outside ball, the deactivated ball poly should be r-x^Tx
         # the clf poly should be rho-V(x)
         all_possible_activation_cases = truth_table(self.h.shape[0])
         all_polys = self.h

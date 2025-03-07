@@ -18,6 +18,12 @@ from compatible_clf_union_cbf.union_cbf import(
     ActivationIndicator
 )
 
+from compatible_clf_union_cbf.ball_inclusion import(
+    BallInclusionLagrangian,
+    BallInclusionLagrangianDegree,
+    BallInclusion
+)
+
 
 @dataclass
 class SubsetVerifyLagrangian:
@@ -307,69 +313,6 @@ class SubsetVerifyLagrangianDegree:
             state_eq_constraints=state_eq_constraints_lagrangians
         )
 
-
-@dataclass
-class BallInclusionLagrangian:
-    r_minus_xTx: Degree
-    h: Degree
-
-    def get_results(
-        self,
-        result: solvers.MathematicalProgramResult,
-        coefficitent_tol: Optional[float]
-    )-> Self:
-        r_minus_xTx_result = get_polynomial_result(
-            result, self.r_minus_xTx, coefficitent_tol
-        )
-        h_result = get_polynomial_result(
-            result, self.h, coefficitent_tol
-        )
-        return BallInclusionLagrangian(
-            r_minus_xTx=r_minus_xTx_result,
-            h=h_result
-            )
-
-
-@dataclass
-class BallInclusionLagrangianDegree:
-    r_minus_xTx: Degree
-    h: Degree
-
-    def to_lagrangians(
-        self,
-        prog: solvers.MathematicalProgram,
-        x: sym.Variables,
-        *,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-        lagrangian_r_minus_xTx: Optional[np.ndarray] = None,
-        lagrangian_h: Optional[np.ndarray] = None,
-    ) -> BallInclusionLagrangian:
-        assert self.r_minus_xTx.y == 0
-        assert self.h.y == 0
-        r_minus_xTx = to_lagrangian_impl(
-            prog,
-            x,
-            y=None,
-            c=None,
-            sos_type=sos_type,
-            is_sos=True,
-            degree=self.r_minus_xTx,
-            lagrangian=lagrangian_r_minus_xTx
-        )
-        h = to_lagrangian_impl(
-            prog,
-            x,
-            y=None,
-            c=None,
-            sos_type=sos_type,
-            is_sos=True,
-            degree=self.h,
-            lagrangian=lagrangian_h
-        )
-        return BallInclusionLagrangian(
-            r_minus_xTx=r_minus_xTx,
-            h=h
-        )
 
 
 @dataclass

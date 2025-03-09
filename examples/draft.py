@@ -4,7 +4,7 @@ sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
 
 import numpy as np
 import pydrake.symbolic as sym
-import compatible_clf_union_cbf.ball_inclusion as bi
+import compatible_clf_union_cbf.inclusion as bi
 
 
 def main():

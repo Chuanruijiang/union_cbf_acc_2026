@@ -18,7 +18,7 @@ from compatible_clf_union_cbf.union_cbf import(
     ActivationIndicator
 )
 
-from compatible_clf_union_cbf.ball_inclusion import(
+from compatible_clf_union_cbf.inclusion import(
     BallInclusionLagrangian,
     BallInclusionLagrangianDegree,
     BallInclusion
@@ -1606,7 +1606,6 @@ class StepTwo:
                 eps_current = eps_current / 2
         return None                        
                 
-        
 
 class CompatibleClfUnionCbfs:
     def __init__(

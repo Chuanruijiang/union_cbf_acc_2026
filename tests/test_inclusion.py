@@ -1,6 +1,6 @@
 import numpy as np
 import pydrake.symbolic as sym
-import compatible_clf_union_cbf.ball_inclusion as bi
+import compatible_clf_union_cbf.inclusion as icl
 
 
 def test_ball_inclusion():
@@ -10,7 +10,7 @@ def test_ball_inclusion():
     h_radius = 5
     h = sym.Polynomial(h_radius**2 - (x - h_center).dot(x - h_center))
 
-    check_object = bi.BallInclusion(
+    check_object = icl.BallInclusion(
         radius=radius,
         h=h,
         x=x

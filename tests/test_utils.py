@@ -7,6 +7,21 @@ import pydrake.symbolic as sym
 import pydrake.solvers as solvers
 
 
+def test_compute_minimum_on_boundary():
+    x = sym.MakeVectorContinuousVariable(3, "x")
+    p = sym.Polynomial(x[0]**2 + x[1]**2 + x[2]**2)
+    q = sym.Polynomial(1 - x.dot(x))
+    expected_output = 1.0
+    allowed_error = 1e-6
+    min_value_p = mut.compute_minimum_on_boundary(
+        x=x,
+        p=p,
+        q=q
+        )
+    assert (min_value_p <= expected_output + allowed_error
+    ) or (min_value_p >= expected_output - allowed_error)
+
+
 def test_truth_table():
     input1 = 2
     expected_output1 = np.array([

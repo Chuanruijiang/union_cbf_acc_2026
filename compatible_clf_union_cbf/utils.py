@@ -8,6 +8,41 @@ import pydrake.symbolic as sym
 import pydrake.solvers as solvers
 
 
+def compute_minimum_on_boundary(
+    x: sym.Variables,
+    p: sym.Polynomial,
+    q: sym.Polynomial
+) -> Optional[float]:
+    """
+    Compute the minimum of p(x) on the boundary q(x) = 0.
+    Here we use Lagrange multiplier method. 
+    In order to min p(x) on the boundary q(x) = 0, we estabilish the
+    Lagrangian L = p(x) - λq(x), and solve the following equations:
+    ∂L/∂x = 0, ∂L/∂λ = 0.
+    Using this way, we can convert a non-linear optimization problem with
+    constraitns to a non-linear feasibility problem.
+    """
+    prog = solvers.MathematicalProgram()
+    prog.AddDecisionVariables(x)
+    lbd = prog.NewContinuousVariables(1, "lbd")
+    L = p - lbd[0]*q
+    dL_dx = L.Jacobian(x)
+    dL_dlbd = L.Jacobian(lbd)
+    for i in range(len(x)):
+        prog.AddConstraint(dL_dx[i].ToExpression() == 0)
+    prog.AddConstraint(dL_dlbd[0].ToExpression()==0)
+
+    result = solvers.Solve(
+        prog=prog,
+        initial_guess=np.ones(len(x)+1)
+        )
+    if result.is_success():
+        x_result = result.GetSolution(x)
+        return p.EvaluateIndeterminates(x, x_result.T)[0]
+    else:
+        return None
+    
+
 def truth_table(n: int) -> np.ndarray:
     """
     Given n, return the truth table of n variables.

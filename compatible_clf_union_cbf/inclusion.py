@@ -22,8 +22,6 @@ is empty. We can use the S-procedure to verify this. We can write the above
 -1 - s_1(x) * (r - xᵀx) + s_2(x)h(x) is SOS 
 where s_1(x) and s_2(x) are SOS polynomials.
 """
-
-
 @dataclass
 class BallInclusionLagrangian:
     r_minus_xTx: Degree
@@ -57,8 +55,8 @@ class BallInclusionLagrangianDegree:
         x: sym.Variables,
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-        lagrangian_r_minus_xTx: Optional[np.ndarray] = None,
-        lagrangian_h: Optional[np.ndarray] = None,
+        lagrangian_r_minus_xTx: Optional[sym.Polynomial] = None,
+        lagrangian_h: Optional[sym.Polynomial] = None,
     ) -> BallInclusionLagrangian:
         assert self.r_minus_xTx.y == 0
         assert self.h.y == 0
@@ -114,7 +112,6 @@ class BallInclusion:
         prog.AddSosConstraint(poly, sos_type)
         return poly
     
-
     def verify_ball_inclusion(
         self,
         ball_x_degree: int,
@@ -278,3 +275,135 @@ class PointsInclusionConstriants:
             return None
 
 
+"""
+The following module creates SOS constraints for excluding unsafe region
+presented by the intersection of 0-super-level sets of a collection of
+polynomial functions. Given a set of polynomial functions p₁(x), ..., pₙ(x)
+the unsafe region is the region: {x| p₁(x) => 0, ..., pₙ(x) => 0}.
+Now, assume we have a cbf h(x), we hope that: 
+for all x in the unsafe region, h(x) < 0.
+This is equivalent to verifying that the set:
+{x | p₁(x) => 0, ..., pₙ(x) => 0, h(x) >= 0}
+is empty. 
+Using P-satz, we have the following SOS constraint:
+-1 - s₁(x) * p₁(x) - ... - sₙ(x) * pₙ(x) - s_{n+1}(x) * h(x) is SOS
+where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
+"""
+@dataclass
+class UnsafeRegionExclusionLagragians:
+    # The array of polynomials presenting lagrangains for p(x)s above
+    unsafe_polys: np.ndarray
+    # The lagrangian for the cbf function
+    h: sym.Polynomial
+
+    def get_results(
+        self,
+        result: solvers.MathematicalProgramResult,
+        coefficitent_tol: Optional[float]
+    )-> Self:
+        unsafe_polys_results = get_polynomial_result(
+            result, self.unsafe_polys, coefficitent_tol
+        )
+        h_result = get_polynomial_result(
+            result, self.h, coefficitent_tol
+        )
+        return UnsafeRegionExclusionLagragians(
+            unsafe_polys=unsafe_polys_results,
+            h=h_result
+        )
+
+
+@dataclass
+class UnsafeRegionExclusionLagrangianDegrees:
+    unsafe_polys: List[Degree]
+    h: Degree
+
+    def to_lagrangians(
+        self,
+        prog: solvers.MathematicalProgram,
+        x: sym.Variables,
+        *,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+        unsafe_poly_lagrangians: Optional[np.ndarray] = None,
+        h_lagrangian: Optional[sym.Polynomial] = None
+    ) -> UnsafeRegionExclusionLagragians:
+        lagrangians_unsafe_polys = to_lagrangian_impl(
+            prog,
+            x,
+            y=None,
+            c=None,
+            sos_type=sos_type,
+            is_sos=True,
+            degree=self.unsafe_polys,
+            lagrangian=unsafe_poly_lagrangians
+        )
+        lagrangians_h = to_lagrangian_impl(
+            prog,
+            x,
+            y=None,
+            c=None,
+            sos_type=sos_type,
+            is_sos=True,
+            degree=self.h,
+            lagrangian=h_lagrangian
+        )
+        return UnsafeRegionExclusionLagragians(
+            unsafe_polys=lagrangians_unsafe_polys,
+            h=lagrangians_h
+        )
+
+
+class UnsafeExclusion:
+    def __init__(
+        self,
+        unsafe_polys: np.ndarray,
+        h: sym.Polynomial,
+        x: np.ndarray
+    ):
+        self.unsafe_polys = unsafe_polys
+        self.h = h
+        self.x = x
+
+    def add_unsafe_exclusion_constraint(
+        self,
+        prog: solvers.MathematicalProgram,
+        unsafe_exclusion_lagrangians: UnsafeRegionExclusionLagragians,
+        sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
+    )-> sym.Polynomial:
+        polys = self.unsafe_polys
+        h = self.h
+        poly = -1
+        for i in range(polys.shape[0]):
+            poly -= unsafe_exclusion_lagrangians.unsafe_polys[i] * polys[i]
+        poly -= unsafe_exclusion_lagrangians.h * h
+        prog.AddSosConstraint(poly, sos_type)
+        return poly
+
+    def verify_unsafe_exclusion(
+        self,
+        unsafe_poly_x_degrees: List[int],
+        h_x_degree: int,
+        sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
+    ) -> bool:
+        assert len(unsafe_poly_x_degrees) == self.unsafe_polys.shape[0]
+
+        prog = solvers.MathematicalProgram()
+        x_set = sym.Variables(self.x)
+        prog.AddIndeterminates(x_set)
+
+        unsafe_exclusion_degree = UnsafeRegionExclusionLagrangianDegrees(
+            unsafe_polys=[
+                Degree(x = unsafe_poly_x_degrees[i], y= 0, c=0)
+                for i in range(self.unsafe_polys.shape[0])
+            ],
+            h=Degree(x = h_x_degree, y= 0, c=0)
+        )
+        unsafe_exclusion_lagrangians = unsafe_exclusion_degree.to_lagrangians(
+            prog, x_set, sos_type=sos_type
+        )
+        self.add_unsafe_exclusion_constraint(
+            prog, unsafe_exclusion_lagrangians, sos_type=sos_type
+        )
+
+        result = solve_with_id(prog)
+        return result.is_success()

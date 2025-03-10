@@ -1914,11 +1914,24 @@ class ClfUnionCbfsSynthesis:
         )
         return poly
 
+    def _add_cbf_ball_inclusion_constraint(
+        self,
+        prog: solvers.MathematicalProgram,
+        cbf: sym.Polynomial,
+        ball_radius: float,
+        ball_inclusion_lagrangian: BallInclusionLagrangianDegree
+    ) -> sym.Polynomial:
+        ball_inclusion = BallInclusion(
+            radius=ball_radius,
+            h=cbf,
+            x=self.x
+        )
+        poly = ball_inclusion.add_ball_inclusion_constraint(
+            prog=prog,
+            ball_inclusion_lagrangian=ball_inclusion_lagrangian
+            )
+        return poly
 
-
-
-
-    def _add_cbf_ball_inclusion_constraint()
 
 
 
@@ -1926,6 +1939,10 @@ class ClfUnionCbfsSynthesis:
 
 
     def _add_cbf_safety_constraint():
+
+
+
+
 
     def _add_cbf_point_inclusion_constraint():
     

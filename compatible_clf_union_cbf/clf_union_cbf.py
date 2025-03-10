@@ -314,7 +314,6 @@ class SubsetVerifyLagrangianDegree:
         )
 
 
-
 @dataclass
 class CompatibilityInRangeLagragians:
     """
@@ -533,13 +532,15 @@ class CompatibleClfCbfInRange:
             assert Au.shape[0] == bu.shape[0]
         self.Au = Au
         self.bu = bu
+        self.nx = x.shape[0]
+        self.nu = sys_dyn_g.shape[1]
 
         # creating necessary symbolic variables:
         self.x = x
         self.y = (
-            sym.MakeVectorContinuousVariable(2, "y")
+            sym.MakeVectorContinuousVariable(self.nu, "y")
             if Au is None
-            else sym.MakeVectorContinuousVariable(2+Au.shape[0], "y")
+            else sym.MakeVectorContinuousVariable(self.nu+Au.shape[0], "y")
             )
         self.c = (
             sym.MakeVectorContinuousVariable(range_strictly_positive.shape[0], "c")
@@ -616,6 +617,12 @@ class CompatibleClfCbfInRange:
         Returns:
           (xi, lambda_mat) ξ(x) and Λ(x) above.
         """
+        
+        if epsilon is not None:
+            eps = epsilon
+        else:
+            eps = 0
+
         lambda_rows = 2 # a cbf + a clf
         if self.Au is not None:
             lambda_rows += self.Au.shape[0]
@@ -627,26 +634,22 @@ class CompatibleClfCbfInRange:
         Lgh = lie_derivative(self.h, self.sys_dyn_g, self.x, 1)
         Lfh = lie_derivative(self.h, self.sys_dyn_f, self.x, 1)
         lambda_mat[0] = -Lgh
-        xi[0] = Lfh + kappa_h*self.h
+        xi[0] = Lfh + kappa_h*self.h - eps
 
         # loading CLF constraints:
         LgV = lie_derivative(self.V, self.sys_dyn_g, self.x, 1)
         LfV = lie_derivative(self.V, self.sys_dyn_f, self.x, 1)
         lambda_mat[1] = LgV
-        xi[1] = -LfV - kappa_V*self.V
+        xi[1] = -LfV - kappa_V*self.V - eps
 
         # loading Au and bu:
         if self.Au is not None:
             lambda_mat[2:] = self.Au
             xi[2:] = self.bu
         
-        # if we have epsilon:
-        if epsilon is not None:
-            xi = xi - epsilon
-        
         return xi, lambda_mat
 
-    def _add_compatibility_constraint(
+    def add_compatibility_constraint(
         self,
         prog: solvers.MathematicalProgram,
         xi: np.ndarray,
@@ -722,7 +725,7 @@ class CompatibleClfCbfInRange:
             kappa_h=kappa_h,
             epsilon=epsilon
         )
-        self._add_compatibility_constraint(
+        self.add_compatibility_constraint(
             prog=prog,
             xi=xi,
             lambda_mat=lambda_mat,
@@ -1799,6 +1802,140 @@ class CompatibleClfUnionCbfs:
             print("Step two passed! epsilon is: ", epsilon)
             return True
 
+
+class ClfUnionCbfsSynthesis:
+    def __init__(
+        self,
+        x: np.ndarray,
+        sys_dyn_f: np.ndarray,
+        sys_dyn_g: np.ndarray,
+        inlcuded_points: np.ndarray,    
+        inlcuded_ball_radius: float,
+        num_cbf: int,
+        Au: Optional[np.ndarray],
+        bu: Optional[np.ndarray],
+        state_eq_constraints: Optional[np.ndarray]
+    ):
+        """
+        The included points should be in the form of
+        array of array of points. Each array of points
+        defines which point the cbf should include.
+        The outter array should have the same length as
+        the number of cbfs. 
+        """
+        self.x = x
+        self.sys_dyn_f = sys_dyn_f
+        self.sys_dyn_g = sys_dyn_g
+        self.inlcuded_points = inlcuded_points
+        self.inlcuded_ball_radius = inlcuded_ball_radius
+        self.num_cbf = num_cbf
+        self.Au = Au
+        self.bu = bu
+        self.state_eq_constraints = state_eq_constraints
+        assert self.inlcuded_points.shape[0] == self.num_cbf
+        if self.Au is not None and self.bu is not None:
+            assert self.Au.shape[1] == self.sys_dyn_g.shape[1]
+            assert self.Au.shape[0] == self.bu.shape[0]
+        
+    def _calc_xi_lambda_for_cbf_synthesis(
+        self,
+        clf: sym.Polynomial,
+        cbf: sym.Polynomial,
+        kappa_V: float,
+        kappa_h: float,
+        epsilon: float
+    )-> Tuple[np.ndarray, np.ndarray]:
+        """
+        This function is used after the synthesis of the CLF. 
+        In this function, CLF is a given polynomial. 
+        The epsilon is computed after the synthesis of the CLF.
+        """
+        if epsilon is not None:
+            eps = epsilon
+        else:
+            eps = 0
+
+        lambda_rows = 2 # a cbf + a clf
+        if self.Au is not None:
+            lambda_rows += self.Au.shape[0]
+        lambda_cols = self.sys_dyn_g.shape[1]
+        lambda_mat = np.empty((lambda_rows, lambda_cols), dtype=object)
+        xi = np.empty((lambda_rows,), dtype=object)
+
+        # loading CBF constriants:
+        Lgh = lie_derivative(cbf, self.sys_dyn_g, self.x, 1)
+        Lfh = lie_derivative(cbf, self.sys_dyn_f, self.x, 1)
+        lambda_mat[0] = -Lgh
+        xi[0] = Lfh + kappa_h*cbf - eps
+
+        # loading CLF constraints:
+        LgV = lie_derivative(clf, self.sys_dyn_g, self.x, 1)
+        LfV = lie_derivative(clf, self.sys_dyn_f, self.x, 1)
+        lambda_mat[1] = LgV
+        xi[1] = -LfV - kappa_V*clf
+
+        # loading Au and bu:
+        if self.Au is not None:
+            lambda_mat[2:] = self.Au
+            xi[2:] = self.bu
+        
+        return xi, lambda_mat
+
+    def _add_cbf_compatibility_constraint(
+        self,
+        prog: solvers.MathematicalProgram,
+        clf: sym.Polynomial,
+        rho: float,
+        cbf: sym.Polynomial,
+        xi: np.ndarray,
+        lambda_mat: np.ndarray,
+        lagrangians: CompatibilityInRangeLagragians,
+        deactivated_cbfs: Optional[np.ndarray]
+    )-> sym.Polynomial:
+        compatible_in_range = CompatibleClfCbfInRange(
+            x=self.x,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            V=clf,
+            h=cbf,
+            range_non_negative=np.array([
+                rho - clf, cbf
+            ]),
+            range_strictly_positive=-deactivated_cbfs,
+            state_eq_const=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
+        )
+        poly = compatible_in_range.add_compatibility_constraint(
+            prog=prog,
+            xi=xi,
+            lambda_mat=lambda_mat,
+            lagrangians=lagrangians
+        )
+        return poly
+
+
+
+
+
+    def _add_cbf_ball_inclusion_constraint()
+
+
+
+
+
+
+    def _add_cbf_safety_constraint():
+
+    def _add_cbf_point_inclusion_constraint():
     
+    def synthesis_clf():
+
+    def synthesis_first_cbf():
+    
+    def synthesis_other_cbfs():
+
+    def synthesis():
+
 
 

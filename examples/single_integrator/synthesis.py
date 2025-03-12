@@ -13,7 +13,18 @@ from compatible_clf_union_cbf.clf import(
 from compatible_clf_union_cbf.union_cbf import(
     UnionCbfSynthesisGivenClf
 )
+from compatible_clf_union_cbf.clf_union_cbf import(
+    save_clf_cbf,
+    load_clf_cbf
+)
 from dynamics import system_dynamics
+
+def get_pkl_file_path():
+    filename = "single_integrator_clf_cbf.pkl"
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
+    )
+    return path
 
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
@@ -25,6 +36,7 @@ def main():
     expected_kappaV = 0.2
     kappaV = 0.8
     kappa_diff = kappaV - expected_kappaV
+    kappah = [1,1,1]
     
     epsilon_0 = 1
     points_to_include = np.array([
@@ -122,7 +134,7 @@ def main():
         bu=None,
         state_eq_constraints=None,
         kappaV=kappaV,
-        kappah=[1, 1, 1],
+        kappah=kappah,
         epsilon_0=epsilon_0,
         epsilon=epsilon,
         cbf_x_degrees=[1, 1, 1],
@@ -153,13 +165,51 @@ def main():
 
     assert cbf_1_result is not None
 
+    (
+        points_to_include,
+        points_inlusion_weights,
+    ) = cbf_synthesis_given_clf.remove_included_points(
+        included_points=points_to_include,
+        points_inclusion_weights=points_inlusion_weights,
+        solved_cbf=cbf_1_result
+    )
 
+    cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
+        cbf_init=sym.Polynomial(x[1] - 5),
+        cbf_index=1,
+        deact_cbfs=np.array([cbf_1_result]),
+        points_to_include=points_to_include,
+        weights_to_include=points_inlusion_weights,
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=10,
+        c_var_in_lagrangians=False
+    )
+
+    assert cbf_2_result is not None
+
+    (
+        points_to_include,
+        points_inlusion_weights,
+    ) = cbf_synthesis_given_clf.remove_included_points(
+        included_points=points_to_include,
+        points_inclusion_weights=points_inlusion_weights,
+        solved_cbf=cbf_2_result
+    )
+
+    cbf_3_result = cbf_synthesis_given_clf.synthesis_other_cbf(
+        cbf_init=sym.Polynomial(-x[0] + x[1] - 15),
+        cbf_index=2,
+        deact_cbfs=np.array([cbf_1_result, cbf_2_result]),
+        points_to_include=points_to_include,
+        weights_to_include=points_inlusion_weights,
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=10,
+        c_var_in_lagrangians=True
+    )
+
+    assert cbf_3_result is not None
 
 if __name__ == "__main__":
     main()
-
-
-
-
-    
-        

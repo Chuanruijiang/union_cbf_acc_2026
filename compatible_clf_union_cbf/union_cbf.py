@@ -13,7 +13,8 @@ from compatible_clf_union_cbf.utils import (
     lie_derivative,
     elementary_symetric_polynomials,
     Degree,
-    to_lagrangian_impl
+    to_lagrangian_impl,
+    is_sos,
 )
 from compatible_clf_union_cbf.inclusion import(
     BallInclusionLagrangian,
@@ -666,7 +667,7 @@ class CompatibilityLagragianDegrees:
                     if lagrangian_deactivated_h is not None
                     else None)
             )
-            for i in range(len(self.range_strictly_positive))
+            for i in range(len(self.deactivated_h))
         ])
         if self.deactivated_h is not None
         else None
@@ -831,7 +832,7 @@ class UnionCbfSynthesisGivenClf:
     ) -> sym.Polynomial:
         poly_one = sym.Polynomial(1)
         poly = -poly_one
-
+        
         # s0(x)Λ(x)ᵀy²:
         assert lambda_mat.shape[0] == self.y_squared_poly.shape[0]
         poly -= lagrangians.lambda_y.dot(self.y_squared_poly.dot(lambda_mat))
@@ -929,7 +930,7 @@ class UnionCbfSynthesisGivenClf:
             sym.MakeVectorContinuousVariable(deactivated_h.shape[0], "c")
             )
             c_squared_poly = np.array([
-                sym.Polynomial(sym.Monomial(self.c[i], 2))
+                sym.Polynomial(sym.Monomial(c[i], 2))
                 for i in range(c.shape[0])
             ])
             c_sets = np.empty(shape=(deactivated_h.shape[0]+1,), dtype=object)
@@ -945,7 +946,8 @@ class UnionCbfSynthesisGivenClf:
 
     def _create_lagrangian_degrees_cbf_synthesis(
         self,
-        cbf_index: int
+        cbf_index: int,
+        c_var_in_lagrangians: bool = True
     ) -> Tuple[
         CompatibilityLagragianDegrees,
         UnsafeRegionExclusionLagrangianDegrees
@@ -965,12 +967,12 @@ class UnionCbfSynthesisGivenClf:
             c_degree = 0
             compatible_deact_h_lagrangian_degree = None
         elif cbf_index == 1:
-            c_degree = 0
-            compatible_deact_h_lagrangian_degree = Degree(
-                x=self.compatible_deact_cbf_x_degree[0], y=2, c=c_degree
-            )
+            c_degree = (2 if c_var_in_lagrangians else 0)
+            compatible_deact_h_lagrangian_degree = [Degree(
+                x=self.compatible_deact_cbf_x_degree[0], y=2, c=0
+            )]
         else:
-            c_degree = 2
+            c_degree = (2 if c_var_in_lagrangians else 0)
             compatible_deact_h_lagrangian_degree = [
                 Degree(x=self.compatible_deact_cbf_x_degree[i], y=2, c=c_degree)
                 for i in range(cbf_index)
@@ -1036,6 +1038,7 @@ class UnionCbfSynthesisGivenClf:
         compatible_lagragian_degree: CompatibilityLagragianDegrees,
         ball_inclusion_lagrangian_degree: Optional[BallInclusionLagrangianDegree],
         safety_lagrangian_degree: UnsafeRegionExclusionLagrangianDegrees,
+        c_vars: Tuple[np.ndarray, np.ndarray, np.ndarray],
         lagrangian_coeff_tol: Optional[float],
         solver_id: Optional[solvers.SolverId],
         solver_options: Optional[solvers.SolverOptions]
@@ -1047,14 +1050,13 @@ class UnionCbfSynthesisGivenClf:
         # initialize the program
         prog = solvers.MathematicalProgram()
         if deact_cbfs is not None:
-            assert ball_inclusion_lagrangian_degree is None
-            c, c_sets, c_squared_poly = self._create_c_variables(deact_cbfs)
-            xyc_set = np.concatenate([self.x, self.y, c], axis=0)
+            assert c_vars is not None
+            xyc_set = np.concatenate([self.x, self.y, c_vars[0]], axis=0)
             prog.AddIndeterminates(sym.Variables(xyc_set))
         else:
-            c = None
-            c_sets = None
-            c_squared_poly = None
+            assert c_vars[0] is None
+            assert c_vars[1] is None
+            assert c_vars[2] is None
             prog.AddIndeterminates(self.xy_set)
 
         # add cbf compatibility constraint
@@ -1062,8 +1064,9 @@ class UnionCbfSynthesisGivenClf:
             prog=prog,
             x=self.x_set,
             y=self.y_set,
-            c_sets=c_sets
+            c_sets=c_vars[1]
         )
+        
         xi, lambda_mat = self._calc_xi_lambda_for_cbf_synthesis(
             cbf=cbf,
             kappa_h=kappah
@@ -1074,7 +1077,7 @@ class UnionCbfSynthesisGivenClf:
             lambda_mat=lambda_mat,
             xi=xi,
             deactivated_h=deact_cbfs,
-            c_squared_poly=c_squared_poly,
+            c_squared_poly=c_vars[2],
             lagrangians=compatible_lagrangians
         )
         # add ball inclusion constraint if this is the first cbf
@@ -1150,6 +1153,7 @@ class UnionCbfSynthesisGivenClf:
         weights_to_include: np.ndarray,
         anchor_points: Optional[np.ndarray],
         anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
+        c_vars: Tuple[np.ndarray, np.ndarray, np.ndarray],
         cbf_coeff_tol: Optional[float],
         solver_id: Optional[solvers.SolverId],
         solver_options: Optional[solvers.SolverOptions]
@@ -1157,14 +1161,13 @@ class UnionCbfSynthesisGivenClf:
         # initialize the program
         prog = solvers.MathematicalProgram()
         if deact_cbfs is not None:
-            assert ball_inclusion_lagrangian_degree is None
-            c, c_sets, c_squared_poly = self._create_c_variables(deact_cbfs)
-            xyc_set = np.concatenate([self.x, self.y, c], axis=0)
+            assert c_vars is not None
+            xyc_set = np.concatenate([self.x, self.y, c_vars[0]], axis=0)
             prog.AddIndeterminates(sym.Variables(xyc_set))
         else:
-            c = None
-            c_sets = None
-            c_squared_poly = None
+            assert c_vars[0] is None
+            assert c_vars[1] is None
+            assert c_vars[2] is None
             prog.AddIndeterminates(self.xy_set)
 
         cbf_unsolved = prog.NewFreePolynomial(self.x_set, cbf_degree)
@@ -1187,10 +1190,10 @@ class UnionCbfSynthesisGivenClf:
             prog=prog,
             x=self.x_set,
             y=self.y_set,
-            c_sets=c_sets,
+            c_sets=c_vars[1],
             lagrangian_lambda_y=compatible_lagrangians.lambda_y,
             lagrangian_xi_y=compatible_lagrangians.xi_y,
-            lagrangian_h=compatible_lagrangians.h,
+            lagrangian_h=compatible_lagrangians.h
         )
 
         self._add_compatibility_constraints(
@@ -1199,7 +1202,7 @@ class UnionCbfSynthesisGivenClf:
             lambda_mat=lambda_mat,
             xi=xi,
             deactivated_h=deact_cbfs,
-            c_squared_poly=c_squared_poly,
+            c_squared_poly=c_vars[2],
             lagrangians=compatible_lagrangians_synthesis
         )
 
@@ -1287,6 +1290,8 @@ class UnionCbfSynthesisGivenClf:
         ) = self._create_lagrangian_degrees_cbf_synthesis(
             cbf_index=0
         )
+        # (3) create c variables:
+        c_vars = self._create_c_variables(deactivated_h=None)
         
         # start bilinear alternation:
         iter_count = 1
@@ -1303,6 +1308,7 @@ class UnionCbfSynthesisGivenClf:
                 compatible_lagragian_degree=compatible_lagrangian_degree,
                 ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
                 safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+                c_vars=c_vars,
                 lagrangian_coeff_tol=lagrangian_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options
@@ -1326,6 +1332,7 @@ class UnionCbfSynthesisGivenClf:
                 weights_to_include=weights_to_include,
                 anchor_points=anchor_points,
                 anchor_bounds=anchor_bounds,
+                c_vars=c_vars,
                 cbf_coeff_tol=cbf_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options
@@ -1339,7 +1346,7 @@ class UnionCbfSynthesisGivenClf:
             )
             print_values = cbf_evaluation
             print(f"iteration: {iter_count}")
-            print(f"[h1](points_to_include): {print_values}")
+            print(f"[h0](points_to_include): {print_values}")
 
             cbf = cbf_updated
             iter_count += 1
@@ -1356,6 +1363,7 @@ class UnionCbfSynthesisGivenClf:
         anchor_points: Optional[np.ndarray],
         anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
         max_iter: int,
+        c_var_in_lagrangians: bool,
         *,
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
@@ -1372,8 +1380,11 @@ class UnionCbfSynthesisGivenClf:
             compatible_lagrangian_degree,
             unsafe_exclusion_lagrangian_degree
         ) = self._create_lagrangian_degrees_cbf_synthesis(
-            cbf_index=cbf_index
+            cbf_index=cbf_index,
+            c_var_in_lagrangians=c_var_in_lagrangians
         )
+        # (3) create c variables:
+        c_vars = self._create_c_variables(deactivated_h=deact_cbfs)
         
         # start bilinear alternation:
         iter_count = 1
@@ -1386,10 +1397,11 @@ class UnionCbfSynthesisGivenClf:
             ) = self.search_lagrangian_given_cbf(
                 cbf=cbf,
                 deact_cbfs=deact_cbfs,
-                kappah=self.kappah[1],
+                kappah=self.kappah[cbf_index],
                 compatible_lagragian_degree=compatible_lagrangian_degree,
                 ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
                 safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+                c_vars=c_vars,
                 lagrangian_coeff_tol=lagrangian_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options
@@ -1399,12 +1411,15 @@ class UnionCbfSynthesisGivenClf:
             assert ball_inclusion_lagrangians is None
             assert unsafe_exclusion_lagrangians is not None
 
+            assert is_sos(compatible_lagrangians.h)
+            # print(compatible_lagrangians.h)
+
             cbf_updated = self.search_cbf_given_lagrangian(
                 deact_cbfs=deact_cbfs,
                 kappah=self.kappah[cbf_index],
                 cbf_degree=self.cbf_x_degrees[cbf_index],
                 compatible_lagrangian_degree=compatible_lagrangian_degree,
-                ball_include_lagrangian_degree=ball_inclusion_lagrangian_degree,
+                ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
                 safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
                 compatible_lagrangians=compatible_lagrangians,
                 ball_inclusion_lagrangians=ball_inclusion_lagrangians,
@@ -1413,6 +1428,7 @@ class UnionCbfSynthesisGivenClf:
                 weights_to_include=weights_to_include,
                 anchor_points=anchor_points,
                 anchor_bounds=anchor_bounds,
+                c_vars=c_vars,
                 cbf_coeff_tol=cbf_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options
@@ -1421,12 +1437,40 @@ class UnionCbfSynthesisGivenClf:
             assert cbf_updated is not None
             cbf_evaluation = self._evalueate_cbf_at_points(
                 cbf=cbf_updated,
-                evaluate_at_points=self.points_to_include
+                evaluate_at_points=points_to_include
             )
             print_values = cbf_evaluation
             print(f"iteration: {iter_count}")
-            print(f"[h1](points_to_include): {print_values}")
+            print(f"[h{cbf_index}](points_to_include): {print_values}")
 
             cbf = cbf_updated
             iter_count += 1
+        
+        return cbf
 
+    def remove_included_points(
+        self,
+        included_points: np.ndarray, 
+        points_inclusion_weights: np.ndarray, 
+        solved_cbf: sym.Polynomial,
+    ) -> Tuple[
+        np.ndarray, np.ndarray
+        ]:
+        new_points_to_include = np.array([])
+        new_weights_to_include = np.array([])
+        for i in range(included_points.shape[0]):
+            cbf_at_point = solved_cbf.EvaluateIndeterminates(
+                indeterminates=self.x,
+                indeterminates_values=included_points[i]
+            )
+            if cbf_at_point < 0:
+                new_points_to_include = np.append(
+                    new_points_to_include, included_points[i]
+                )
+                new_weights_to_include = np.append(
+                    new_weights_to_include, points_inclusion_weights[i]
+                )
+            new_points_to_include = new_points_to_include.reshape(-1, self.x.shape[0])
+        return new_points_to_include, new_weights_to_include
+
+       

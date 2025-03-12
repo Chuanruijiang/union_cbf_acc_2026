@@ -4,33 +4,72 @@ sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
 
 import numpy as np
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.inclusion import(
-    UnsafeExclusion
+from compatible_clf_union_cbf.clf_union_cbf import(
+    CompatibleClfCbfInRange
 )
 
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    obstacle = np.array([
-        sym.Polynomial(-x[0] - 1),
-        sym.Polynomial(x[0] + 3),
-        sym.Polynomial(x[1] + 1),
-        sym.Polynomial(-x[1] + 1)
+    f = np.array([
+        sym.Polynomial(x[1]),
+        sym.Polynomial(0)
     ])
-    h_center = np.array([-2, 2])
-    h = sym.Polynomial(0.5**2 - (x - h_center).dot(x - h_center))
-
-    check_object = UnsafeExclusion(
-        unsafe_polys=obstacle,
+    g = np.array([
+        [sym.Polynomial(0)],
+        [sym.Polynomial(1)]
+    ])
+    V = sym.Polynomial(x.dot(x))
+    h = sym.Polynomial(1 - x.dot(x))
+    range_non_negative = np.array([sym.Polynomial(5 - x.dot(x))])
+    Au = np.array([
+        [1], [-1]
+    ])
+    bu = np.array([1, 1])
+    kappa_V = 1
+    kappa_h = 1
+    epsilon = 0.1
+    test_object = CompatibleClfCbfInRange(
+        x=x,
+        sys_dyn_f=f,
+        sys_dyn_g=g,
+        V=V,
         h=h,
-        x=x
+        range_non_negative=range_non_negative,
+        range_strictly_positive=None,
+        state_eq_const=None,
+        Au=Au,
+        bu=bu
     )
-    
-    check_result = check_object.verify_unsafe_exclusion(
-        unsafe_poly_x_degrees=[2,2,2,2],
-        h_x_degree=0
+    expected_lambda = np.array([
+        [sym.Polynomial(2*x[1])],
+        [sym.Polynomial(2*x[1])],
+        [1],
+        [-1]
+    ])
+    expected_xi = np.array([
+        sym.Polynomial(-2*x[0]*x[1] + 1 - x.dot(x) - epsilon),
+        sym.Polynomial(-2*x[0]*x[1] - x.dot(x) - epsilon),
+        1,
+        1
+    ])
+    xi, lambda_ = test_object._calc_xi_lambda(
+        kappa_V=kappa_V,
+        kappa_h=kappa_h,
+        epsilon=epsilon
     )
-
-    assert check_result is True
+    assert xi.shape == expected_xi.shape
+    assert lambda_.shape == expected_lambda.shape
+    for i in range(xi.shape[0]):
+        if isinstance(xi[i], sym.Polynomial):
+            assert xi[i].EqualTo(expected_xi[i])
+        else:
+            assert xi[i] == expected_xi[i]
+    for i in range(lambda_.shape[0]):
+        for j in range(lambda_.shape[1]):
+            if isinstance(lambda_[i][j], sym.Polynomial):
+                assert lambda_[i][j].EqualTo(expected_lambda[i][j])
+            else:
+                assert lambda_[i][j] == expected_lambda[i][j]
 
 if __name__ == "__main__":
     main()

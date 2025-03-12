@@ -53,7 +53,8 @@ def test_clf_bilinear_alternation():
         sys_dyn_f=f,
         sys_dyn_g=g,
         Au=None,
-        bu=None
+        bu=None,
+        state_eq_constraint=None,
         )
     
     V_result = clf_synthesis.bilinear_alternation(
@@ -67,6 +68,7 @@ def test_clf_bilinear_alternation():
         clf_lagrangain_xi_y_x_degree=clf_lagrangian_xi_y_x_degree,
         clf_lagrangain_rho_minus_V_x_degree=clf_lagrangian_rho_minus_V_x_degree,
         V_x_degree=V_x_degree,
+        state_eq_constraints_x_degree=None,
         included_points=points_to_include,
         points_inclusion_weights=points_inlusion_weights,
         anchor_points=None,

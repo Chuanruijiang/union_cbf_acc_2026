@@ -50,25 +50,35 @@ class ClfLagrangian:
     lambda_y: np.ndarray
     xi_y: sym.Polynomial
     rho_minus_V: sym.Polynomial
+    state_eq_constraints: Optional[np.ndarray]
     
     def get_results(
         self,
         result: solvers.MathematicalProgramResult,
-        coefficitent_tol: Optional[float]
+        coefficient_tol: Optional[float]
     ) -> Self:
         lambda_y_result = get_polynomial_result(
-            result, self.lambda_y, coefficitent_tol
+            result, self.lambda_y, coefficient_tol
             )
         xi_y_result = get_polynomial_result(
-            result, self.xi_y, coefficitent_tol
+            result, self.xi_y, coefficient_tol
             )
         rho_minus_V_result = get_polynomial_result(
-            result, self.rho_minus_V, coefficitent_tol
+            result, self.rho_minus_V, coefficient_tol
             )
+        state_eq_constraints_result = (
+            get_polynomial_result(
+                result, self.state_eq_constraints, coefficient_tol
+            ) 
+            if self.state_eq_constraints is not None 
+            else 
+            None
+        )
         return ClfLagrangian(
             lambda_y=lambda_y_result,
             xi_y=xi_y_result,
-            rho_minus_V=rho_minus_V_result
+            rho_minus_V=rho_minus_V_result,
+            state_eq_constraints=state_eq_constraints_result
             )
 
 
@@ -77,6 +87,7 @@ class ClfLagrangianDegree:
     lambda_y: List[Degree]
     xi_y: Degree
     rho_minus_V: Degree
+    state_eq_constraints: Optional[List[Degree]]
 
     def to_lagrangians(
         self,
@@ -122,10 +133,24 @@ class ClfLagrangianDegree:
             lagrangian=lagrangian_rho_minus_V
         )
 
+        if self.state_eq_constraints is not None:
+            state_eq_constraints_lagrangians = to_lagrangian_impl(
+                prog=prog,
+                x=x,
+                y=y,
+                c=None,
+                sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+                is_sos=True,
+                degree=self.state_eq_constraints
+            )
+        else:
+            state_eq_constraints_lagrangians = None
+
         return ClfLagrangian(
             lambda_y=lambda_y_lagrangians,
             xi_y=xi_y_lagrangian,
-            rho_minus_V=rho_minus_V_lagrangian
+            rho_minus_V=rho_minus_V_lagrangian,
+            state_eq_constraints=state_eq_constraints_lagrangians
             )
 
 
@@ -136,7 +161,8 @@ class ClfSynthesis:
         sys_dyn_f: np.ndarray,
         sys_dyn_g: np.ndarray,
         Au: Optional[np.ndarray],
-        bu: Optional[np.ndarray]
+        bu: Optional[np.ndarray],
+        state_eq_constraint: Optional[np.ndarray]
     ):
         """
         Noted that since we are synthesizing a CLF, the CLF would be changing during
@@ -148,6 +174,7 @@ class ClfSynthesis:
         self.sys_dyn_g = sys_dyn_g
         self.Au = Au
         self.bu = bu
+        self.state_eq_constraint = state_eq_constraint
 
         if Au is not None:
             assert bu is not None
@@ -215,6 +242,8 @@ class ClfSynthesis:
         poly -= lagrangian.lambda_y.dot(lambda_mat.T @ self.y_squared_poly)
         poly -= lagrangian.xi_y * (xi.dot(self.y_squared_poly) + poly_one)
         poly -= lagrangian.rho_minus_V * (rho - clf)
+        if self.state_eq_constraint is not None:
+            poly -= lagrangian.state_eq_constraints.dot(self.state_eq_constraint)
 
         prog.AddSosConstraint(poly, sos_type)
         return poly
@@ -278,7 +307,8 @@ class ClfSynthesis:
         ball_inclusion_h_x_degree: int,
         clf_lagrangain_lambda_y_x_degree: List[int],
         clf_lagrangain_xi_y_x_degree: int,
-        clf_lagrangain_rho_minus_V_x_degree: int
+        clf_lagrangain_rho_minus_V_x_degree: int,
+        state_eq_constraints_x_degree: Optional[List[int]]
     ) -> Tuple[
         BallInclusionLagrangianDegree,
         ClfLagrangianDegree
@@ -293,7 +323,15 @@ class ClfSynthesis:
                 for i in range(len(clf_lagrangain_lambda_y_x_degree))
             ],
             xi_y=Degree(x=clf_lagrangain_xi_y_x_degree, y=0, c=0),
-            rho_minus_V=Degree(x=clf_lagrangain_rho_minus_V_x_degree, y=2, c=0)
+            rho_minus_V=Degree(x=clf_lagrangain_rho_minus_V_x_degree, y=2, c=0),
+            state_eq_constraints=(
+                [
+                    Degree(x=state_eq_constraints_x_degree[i], y=0, c=0)
+                    for i in range(len(state_eq_constraints_x_degree))
+                ] 
+                if state_eq_constraints_x_degree is not None 
+                else None
+            )
         )
         return (
             ball_inclusion_lagrangian_degree,
@@ -360,11 +398,11 @@ class ClfSynthesis:
         if result.is_success():
             ball_inclusion_lagrangian_result = ball_inclusion_lagrangian.get_results(
                 result=result,
-                coefficitent_tol=lagrangian_coeff_tol
+                coefficient_tol=lagrangian_coeff_tol
             )
             clf_lagrangian_result = clf_lagrangian.get_results(
                 result=result,
-                coefficitent_tol=lagrangian_coeff_tol
+                coefficient_tol=lagrangian_coeff_tol
             )
             return (
                 ball_inclusion_lagrangian_result, 
@@ -457,6 +495,7 @@ class ClfSynthesis:
         clf_lagrangain_xi_y_x_degree: int,
         clf_lagrangain_rho_minus_V_x_degree: int,
         V_x_degree: int,
+        state_eq_constraints_x_degree: Optional[List[int]],
         included_points: np.ndarray,
         points_inclusion_weights: np.ndarray,
         anchor_points: Optional[np.ndarray],
@@ -476,7 +515,8 @@ class ClfSynthesis:
             ball_inclusion_h_x_degree=ball_inclusion_h_x_degree,
             clf_lagrangain_lambda_y_x_degree=clf_lagrangain_lambda_y_x_degree,
             clf_lagrangain_xi_y_x_degree=clf_lagrangain_xi_y_x_degree,
-            clf_lagrangain_rho_minus_V_x_degree=clf_lagrangain_rho_minus_V_x_degree
+            clf_lagrangain_rho_minus_V_x_degree=clf_lagrangain_rho_minus_V_x_degree,
+            state_eq_constraints_x_degree=state_eq_constraints_x_degree
         )
         iter_num = 1
         clf = clf_init
@@ -518,11 +558,11 @@ class ClfSynthesis:
 
             assert clf_updated is not None
 
-            clf_eavaluation = self._evalueate_clf_at_points(
+            clf_evaluation = self._evalueate_clf_at_points(
                 clf=clf_updated,
                 evaluate_at_points=included_points
             )
-            print_values = rho - clf_eavaluation
+            print_values = rho - clf_evaluation
             print(f"iteration: {iter_num}")
             print(f"[rho - V](states_to_be_included): {print_values}")
             

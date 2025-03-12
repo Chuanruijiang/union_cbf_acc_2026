@@ -10,7 +10,7 @@ from compatible_clf_union_cbf.utils import (
     get_polynomial_result,
     solve_with_id,
     lie_derivative,
-    check_array_of_polynomials
+    check_array_of_polynomials,
 )
 from compatible_clf_union_cbf.union_cbf import(
     UnionCBF,
@@ -21,8 +21,13 @@ from compatible_clf_union_cbf.union_cbf import(
 from compatible_clf_union_cbf.inclusion import(
     BallInclusionLagrangian,
     BallInclusionLagrangianDegree,
-    BallInclusion
+    BallInclusion,
+    UnsafeExclusion,
+    UnsafeRegionExclusionLagrangians,
+    UnsafeRegionExclusionLagrangianDegrees,
+    PointsInclusionConstriants
 )
+from compatible_clf_union_cbf.clf import ClfSynthesis
 
 
 @dataclass
@@ -390,8 +395,8 @@ class CompatibilityInRangeLagragianDegrees:
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         lagrangian_lambda_y: Optional[np.ndarray] = None,
         lagrangian_xi_y: Optional[sym.Polynomial] = None,
-        lagrangian_range_non_negative: Optional[List[np.ndarray]] = None,
-        lagrangian_range_strictly_positive: Optional[List[np.ndarray]] = None,
+        lagrangian_range_non_negative: Optional[np.ndarray] = None,
+        lagrangian_range_strictly_positive: Optional[np.ndarray] = None,
         lagrangian_state_eq_const: Optional[List[np.ndarray]] = None,
     ) -> CompatibilityInRangeLagragians:
         """
@@ -433,6 +438,7 @@ class CompatibilityInRangeLagragianDegrees:
             degree=self.xi_y,
             lagrangian=lagrangian_xi_y
         )
+        
         range_non_negative_lagrangians = (
             to_lagrangian_impl(
                 prog=prog,
@@ -447,6 +453,7 @@ class CompatibilityInRangeLagragianDegrees:
             if self.range_non_negative is not None
             else None
         )
+                    
         range_strictly_positive_lagrangians = (
             np.array([
                 to_lagrangian_impl(
@@ -509,7 +516,9 @@ class CompatibleClfCbfInRange:
         sys_dyn_f: np.ndarray,
         sys_dyn_g: np.ndarray,
         V: sym.Polynomial,
-        h: sym.Polynomial,
+        # The h term can set to be none when initializing
+        # the CBF synthesis program.
+        h: Optional[sym.Polynomial],
         range_non_negative: Optional[np.ndarray],
         range_strictly_positive: Optional[np.ndarray],
         state_eq_const: Optional[np.ndarray],
@@ -584,12 +593,13 @@ class CompatibleClfCbfInRange:
         )
 
         # check the polynomials:
-        if range_non_negative is not None:
-            check_array_of_polynomials(range_non_negative, self.x_set)
-        if range_strictly_positive is not None:
-            check_array_of_polynomials(range_strictly_positive, self.x_set)
-        if state_eq_const is not None:
-            check_array_of_polynomials(self.state_eq_const, self.x_set)
+        if h is not None:
+            if range_non_negative is not None:
+                check_array_of_polynomials(range_non_negative, self.x_set)
+            if range_strictly_positive is not None:
+                check_array_of_polynomials(range_strictly_positive, self.x_set)
+            if state_eq_const is not None:
+                check_array_of_polynomials(self.state_eq_const, self.x_set)
     
     def _calc_xi_lambda(
         self,
@@ -1803,58 +1813,87 @@ class CompatibleClfUnionCbfs:
             return True
 
 
-class ClfUnionCbfsSynthesis:
+
+
+
+
+
+class UnionCbfsSynthesisGivenClf:
     def __init__(
         self,
         x: np.ndarray,
         sys_dyn_f: np.ndarray,
         sys_dyn_g: np.ndarray,
-        inlcuded_points: np.ndarray,    
-        inlcuded_ball_radius: float,
+        clf: sym.Polynomial,
+        rho: float,
         num_cbf: int,
+        unsafe_polys: np.ndarray,
         Au: Optional[np.ndarray],
         bu: Optional[np.ndarray],
-        state_eq_constraints: Optional[np.ndarray]
+        state_eq_constraints: Optional[np.ndarray],
+        kappaV: float,
+        kappah: List[float],
+        epsilon_0: float,
+        epsilon: float,
+        cbf_x_degrees: List[int],
+        cbf_ball_inclusion_ball_x_degree: int,
+        cbf_ball_inclusion_cbf_x_degree: int,
+        compatible_lambda_y_x_degrees: List[int],
+        compatible_xi_y_x_degree: int,
+        compatible_rho_minus_V_x_degree: int,
+        compatible_h_x_degree: int,
+        compatible_deact_cbf_x_degree: List[int],
+        state_eq_x_degrees: Optional[List[int]],
+        safety_h_x_degree: int,
+        safety_unsafe_polys_x_degree: List[int],
     ):
-        """
-        The included points should be in the form of
-        array of array of points. Each array of points
-        defines which point the cbf should include.
-        The outter array should have the same length as
-        the number of cbfs. 
-        """
         self.x = x
         self.sys_dyn_f = sys_dyn_f
         self.sys_dyn_g = sys_dyn_g
-        self.inlcuded_points = inlcuded_points
-        self.inlcuded_ball_radius = inlcuded_ball_radius
+        self.clf = clf
+        self.rho = rho
         self.num_cbf = num_cbf
+        self.unsafe_polys = unsafe_polys
         self.Au = Au
         self.bu = bu
-        self.state_eq_constraints = state_eq_constraints
-        assert self.inlcuded_points.shape[0] == self.num_cbf
         if self.Au is not None and self.bu is not None:
             assert self.Au.shape[1] == self.sys_dyn_g.shape[1]
             assert self.Au.shape[0] == self.bu.shape[0]
-        
+        self.state_eq_constraints = state_eq_constraints
+        self.kappaV = kappaV
+        self.kappah = kappah
+        assert len(self.kappah) == self.num_cbf
+        self.epsilon_0 = epsilon_0
+        self.epsilon = epsilon
+        assert self.epsilon_0 > 0
+        assert self.epsilon > 0
+        self.cbf_x_degrees = cbf_x_degrees
+        assert len(self.cbf_x_degrees) == self.num_cbf
+        self.cbf_ball_inclusion_ball_x_degree = cbf_ball_inclusion_ball_x_degree
+        self.cbf_ball_inclusion_cbf_x_degree = cbf_ball_inclusion_cbf_x_degree
+        self.compatible_lambda_y_x_degrees = compatible_lambda_y_x_degrees
+        self.compatible_xi_y_x_degree = compatible_xi_y_x_degree
+        self.compatible_rho_minus_V_x_degree = compatible_rho_minus_V_x_degree
+        self.compatible_h_x_degree = compatible_h_x_degree
+        self.compatible_deact_cbf_x_degree = compatible_deact_cbf_x_degree
+        assert len(self.compatible_deact_cbf_x_degree) == self.num_cbf-1
+        self.state_eq_x_degrees = state_eq_x_degrees
+        if self.state_eq_constraints is not None:
+            assert len(self.state_eq_x_degrees) == self.state_eq_constraints.shape[0]
+        self.safety_h_x_degree = safety_h_x_degree
+        self.safety_unsafe_polys_x_degree = safety_unsafe_polys_x_degree
+        assert len(self.safety_unsafe_polys_x_degree) == self.unsafe_polys.shape[0]
+
     def _calc_xi_lambda_for_cbf_synthesis(
         self,
-        clf: sym.Polynomial,
         cbf: sym.Polynomial,
-        kappa_V: float,
         kappa_h: float,
-        epsilon: float
     )-> Tuple[np.ndarray, np.ndarray]:
         """
         This function is used after the synthesis of the CLF. 
         In this function, CLF is a given polynomial. 
         The epsilon is computed after the synthesis of the CLF.
         """
-        if epsilon is not None:
-            eps = epsilon
-        else:
-            eps = 0
-
         lambda_rows = 2 # a cbf + a clf
         if self.Au is not None:
             lambda_rows += self.Au.shape[0]
@@ -1866,13 +1905,13 @@ class ClfUnionCbfsSynthesis:
         Lgh = lie_derivative(cbf, self.sys_dyn_g, self.x, 1)
         Lfh = lie_derivative(cbf, self.sys_dyn_f, self.x, 1)
         lambda_mat[0] = -Lgh
-        xi[0] = Lfh + kappa_h*cbf - eps
+        xi[0] = Lfh + kappa_h*cbf - self.epsilon
 
         # loading CLF constraints:
-        LgV = lie_derivative(clf, self.sys_dyn_g, self.x, 1)
-        LfV = lie_derivative(clf, self.sys_dyn_f, self.x, 1)
+        LgV = lie_derivative(self.clf, self.sys_dyn_g, self.x, 1)
+        LfV = lie_derivative(self.clf, self.sys_dyn_f, self.x, 1)
         lambda_mat[1] = LgV
-        xi[1] = -LfV - kappa_V*clf
+        xi[1] = -LfV - self.kappaV*self.clf
 
         # loading Au and bu:
         if self.Au is not None:
@@ -1881,48 +1920,14 @@ class ClfUnionCbfsSynthesis:
         
         return xi, lambda_mat
 
-    def _add_cbf_compatibility_constraint(
-        self,
-        prog: solvers.MathematicalProgram,
-        clf: sym.Polynomial,
-        rho: float,
-        cbf: sym.Polynomial,
-        xi: np.ndarray,
-        lambda_mat: np.ndarray,
-        lagrangians: CompatibilityInRangeLagragians,
-        deactivated_cbfs: Optional[np.ndarray]
-    )-> sym.Polynomial:
-        compatible_in_range = CompatibleClfCbfInRange(
-            x=self.x,
-            sys_dyn_f=self.sys_dyn_f,
-            sys_dyn_g=self.sys_dyn_g,
-            V=clf,
-            h=cbf,
-            range_non_negative=np.array([
-                rho - clf, cbf
-            ]),
-            range_strictly_positive=-deactivated_cbfs,
-            state_eq_const=self.state_eq_constraints,
-            Au=self.Au,
-            bu=self.bu
-        )
-        poly = compatible_in_range.add_compatibility_constraint(
-            prog=prog,
-            xi=xi,
-            lambda_mat=lambda_mat,
-            lagrangians=lagrangians
-        )
-        return poly
-
     def _add_cbf_ball_inclusion_constraint(
         self,
         prog: solvers.MathematicalProgram,
         cbf: sym.Polynomial,
-        ball_radius: float,
-        ball_inclusion_lagrangian: BallInclusionLagrangianDegree
+        ball_inclusion_lagrangian: BallInclusionLagrangian
     ) -> sym.Polynomial:
         ball_inclusion = BallInclusion(
-            radius=ball_radius,
+            radius=self.epsilon_0,
             h=cbf,
             x=self.x
         )
@@ -1932,27 +1937,555 @@ class ClfUnionCbfsSynthesis:
             )
         return poly
 
+    def _add_cbf_safety_constraint(
+        self,
+        prog: solvers.MathematicalProgram,
+        cbf: sym.Polynomial,
+        unsafe_lagrangians: UnsafeRegionExclusionLagrangians
+    ) -> sym.Polynomial:
+        unsafe_exclusion = UnsafeExclusion(
+            unsafe_polys=self.unsafe_polys,
+            h=cbf,
+            x=self.x
+        )
+        poly = unsafe_exclusion.add_unsafe_exclusion_constraint(
+            prog=prog,
+            unsafe_exclusion_lagrangians=unsafe_lagrangians
+        )
+        return poly
 
+    def _add_cbf_point_inclusion_constraint(
+        self,
+        prog: solvers.MathematicalProgram,
+        cbf: sym.Polynomial,
+        points_to_include: np.ndarray,
+        weights_to_include: np.ndarray,
+        anchor_points: Optional[np.ndarray],
+        anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]]
+    ):
+         point_inclusion = PointsInclusionConstriants(
+             x=self.x,
+             p=cbf,
+             points_to_include=points_to_include,
+             point_inclusion_weights=weights_to_include,
+             anchor_points=anchor_points,
+             p_anchor_bounds=anchor_bounds
+         )
+         point_inclusion.add_to_prog(prog=prog)
+         point_inclusion.add_anchor_bound_to_prog(prog=prog)
 
-
-
-
-
-    def _add_cbf_safety_constraint():
-
-
-
-
-
-    def _add_cbf_point_inclusion_constraint():
+    def _create_lagrangian_degrees_cbf_synthesis(
+        self,
+        cbf_index: int
+    ) -> Tuple[
+        CompatibilityInRangeLagragianDegrees,
+        UnsafeRegionExclusionLagrangianDegrees
+    ]:
+        """
+        This is a function that creates the lagrangian degrees for synthesis of
+        all cbfs. Henece, some of the input and output arguments are optional.
+        When synthesiszing the first cbf:
+            -compatible_in_range does not need deactivated cbfs.
+            -ball_inclusion lagrangians are needed.
+        When synthesiszing the other cbfs:
+            -compatible_in_range needs deactivated cbfs.
+            -ball_inclusion lagrangians are not needed.
+        """
+        assert len(self.compatible_lambda_y_x_degrees) == self.sys_dyn_g.shape[1]
+        if cbf_index == 0:
+            c_degree = 0
+            compatible_deact_h_lagrangian_degree = None
+        elif cbf_index == 1:
+            c_degree = 0
+            compatible_deact_h_lagrangian_degree = Degree(
+                x=self.compatible_deact_cbf_x_degree[0], y=2, c=c_degree
+            )
+        else:
+            c_degree = 2
+            compatible_deact_h_lagrangian_degree = [
+                Degree(x=self.compatible_deact_cbf_x_degree[i], y=2, c=c_degree)
+                for i in range(cbf_index)
+            ]
+        (
+            compatibility_in_range_lagrangian_degrees
+        ) = CompatibilityInRangeLagragianDegrees(
+            lambda_y=[
+                Degree(x=self.compatible_lambda_y_x_degrees[i], y=0, c=c_degree)
+                for i in range(self.sys_dyn_g.shape[1])
+            ],
+            xi_y=Degree(x=self.compatible_xi_y_x_degree, y=0, c=c_degree),
+            range_non_negative=[
+                Degree(x=self.compatible_rho_minus_V_x_degree, y=2, c=c_degree),
+                Degree(x=self.compatible_h_x_degree, y=2, c=c_degree)
+                ],
+            range_strictly_positive=compatible_deact_h_lagrangian_degree,
+            state_eq_const=(
+                None if self.state_eq_constraints is None
+                else [
+                    Degree(x=self.state_eq_x_degrees[i], y=2, c=c_degree)
+                    for i in range(len(self.state_eq_x_degrees))
+                ]
+            )
+        )
+        safety_lagrangian_degree = UnsafeRegionExclusionLagrangianDegrees(
+            unsafe_polys=[
+                Degree(x=self.safety_unsafe_polys_x_degree[i], y=0, c=0)
+                for i in range(len(self.safety_unsafe_polys_x_degree))
+            ],
+            h=Degree(x=self.safety_h_x_degree, y=0, c=0)
+        )
+        return (
+            compatibility_in_range_lagrangian_degrees,
+            safety_lagrangian_degree
+        )
     
-    def synthesis_clf():
-
-    def synthesis_first_cbf():
+    def _create_ball_inclusion_lagrangian_degree(
+        self
+        ) -> BallInclusionLagrangianDegree:
+        ball_inclusion_lagrangian_degree = BallInclusionLagrangianDegree(
+            r_minus_xTx=Degree(x=self.cbf_ball_inclusion_ball_x_degree, y=0, c=0),
+            h=Degree(x=self.cbf_ball_inclusion_cbf_x_degree, y=0, c=0)
+        )
+        return ball_inclusion_lagrangian_degree
     
-    def synthesis_other_cbfs():
+    def _evalueate_cbf_at_points(
+        self,
+        cbf: sym.Polynomial,
+        evaluate_at_points: np.ndarray
+    ) -> np.ndarray:
+        cbf_at_points = cbf.EvaluateIndeterminates(
+            indeterminates=self.x,
+            indeterminates_values=evaluate_at_points.T
+        )
+        return cbf_at_points
 
-    def synthesis():
+    def search_lagrangian_given_cbf(
+        self,
+        cbf: sym.Polynomial,
+        deact_cbfs: Optional[np.ndarray],
+        kappah: float,
+        compatible_lagragian_degree: CompatibilityInRangeLagragianDegrees,
+        ball_inclusion_lagrangian_degree: Optional[BallInclusionLagrangianDegree],
+        safety_lagrangian_degree: UnsafeRegionExclusionLagrangianDegrees,
+        lagrangian_coeff_tol: Optional[float],
+        solver_id: Optional[solvers.SolverId],
+        solver_options: Optional[solvers.SolverOptions]
+    ) -> Tuple[
+            Optional[CompatibilityInRangeLagragians], 
+            Optional[BallInclusionLagrangian], 
+            Optional[UnsafeRegionExclusionLagrangians]
+        ]:
+        # initialize the program
+        prog = solvers.MathematicalProgram()
+        compatible_in_range = CompatibleClfCbfInRange(
+            x=self.x,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            V=self.clf,
+            h=cbf,
+            range_non_negative=np.array([
+                self.rho - self.clf, cbf
+            ]),
+            range_strictly_positive=(
+                -deact_cbfs
+                if deact_cbfs is not None
+                else None
+                ),
+            state_eq_const=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
+        )
+        all_varibales = (
+            compatible_in_range.xyc_set
+            if deact_cbfs is not None
+            else compatible_in_range.xy_set
+            )
+        prog.AddIndeterminates(all_varibales)
+        # add cbf compatibility constraint
+        compatible_lagrangians = compatible_lagragian_degree.to_lagrangians(
+            prog=prog,
+            x=compatible_in_range.x_set,
+            y=compatible_in_range.y_set,
+            c_sets=compatible_in_range.c_sets
+        )
+        xi, lambda_mat = self._calc_xi_lambda_for_cbf_synthesis(
+            cbf=cbf,
+            kappa_h=kappah
+        )
+        compatible_in_range.add_compatibility_constraint(
+            prog=prog,
+            xi=xi,
+            lambda_mat=lambda_mat,
+            lagrangians=compatible_lagrangians
+        )
+        # add ball inclusion constraint if this is the first cbf
+        if ball_inclusion_lagrangian_degree is not None:
+            assert deact_cbfs is None
+            (
+                ball_inclusion_lagrangians
+            ) = ball_inclusion_lagrangian_degree.to_lagrangians(
+                prog=prog,
+                x=compatible_in_range.x_set
+            )
+            self._add_cbf_ball_inclusion_constraint(
+                prog=prog,
+                cbf=cbf,
+                ball_inclusion_lagrangian=ball_inclusion_lagrangians
+            )
+        # add unsafe region exclusion constraint
+        unsafe_exclusion_lagrangians = safety_lagrangian_degree.to_lagrangians(
+            prog=prog,
+            x=compatible_in_range.x_set
+        )
+        self._add_cbf_safety_constraint(
+            prog=prog,
+            cbf=cbf,
+            unsafe_lagrangians=unsafe_exclusion_lagrangians
+        )
+
+        # solve the program
+        result = solve_with_id(
+            prog=prog,
+            solver_id=solver_id,
+            solver_options=solver_options
+            )
+
+        if result.is_success():
+            compatible_lagrangian_reults = compatible_lagrangians.get_results(
+                result=result,
+                coefficitent_tol=lagrangian_coeff_tol
+            )
+            if ball_inclusion_lagrangian_degree is not None:
+                (
+                    ball_inclusion_lagrangian_results
+                ) = ball_inclusion_lagrangians.get_results(
+                    result=result,
+                    coefficitent_tol=lagrangian_coeff_tol
+                )
+            else:
+                ball_inclusion_lagrangian_results = None
+            safety_lagrangian_results = unsafe_exclusion_lagrangians.get_results(
+                result=result,
+                coefficitent_tol=lagrangian_coeff_tol
+            )
+            return (
+                compatible_lagrangian_reults,
+                ball_inclusion_lagrangian_results,
+                safety_lagrangian_results
+            )
+        else:
+            return (None, None, None)
+
+    def search_cbf_given_lagrangian(
+        self,
+        deact_cbfs: Optional[np.ndarray],
+        kappah: float,
+        cbf_degree: int,
+        compatible_lagrangian_degree: CompatibilityInRangeLagragianDegrees,
+        ball_inclusion_lagrangian_degree: Optional[BallInclusionLagrangianDegree],
+        safety_lagrangian_degree: UnsafeRegionExclusionLagrangianDegrees,
+        compatible_lagrangians: CompatibilityInRangeLagragians,
+        ball_inclusion_lagrangians: Optional[BallInclusionLagrangian],
+        safety_lagrangians: UnsafeRegionExclusionLagrangians,
+        points_to_include: np.ndarray,
+        weights_to_include: np.ndarray,
+        anchor_points: Optional[np.ndarray],
+        anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
+        cbf_coeff_tol: Optional[float],
+        solver_id: Optional[solvers.SolverId],
+        solver_options: Optional[solvers.SolverOptions]
+    ) -> Optional[sym.Polynomial]:
+        # initialize the program
+        prog = solvers.MathematicalProgram()
+        compatible_in_range = CompatibleClfCbfInRange(
+            x=self.x,
+            sys_dyn_f=self.sys_dyn_f,
+            sys_dyn_g=self.sys_dyn_g,
+            V=self.clf,
+            h=None,
+            range_non_negative=np.array([
+                self.rho - self.clf, None
+            ]),
+            range_strictly_positive=(
+                -deact_cbfs
+                if deact_cbfs is not None
+                else None
+            ),
+            state_eq_const=self.state_eq_constraints,
+            Au=self.Au,
+            bu=self.bu
+        )
+        all_varibales = (
+            compatible_in_range.xyc_set
+            if deact_cbfs is not None
+            else compatible_in_range.xy_set
+            )
+        prog.AddIndeterminates(all_varibales)
+
+        cbf_unsolved = prog.NewFreePolynomial(
+            indeterminates=compatible_in_range.x_set,
+            deg=cbf_degree
+        )
+        compatible_in_range.h = cbf_unsolved
+        compatible_in_range.range_non_negative[1] = cbf_unsolved
+
+
+        # add cbf compatibility constraint
+        xi, lambda_mat = self._calc_xi_lambda_for_cbf_synthesis(
+            cbf=cbf_unsolved,
+            kappa_h=kappah
+        )
+
+        # create the compatible lagragians for cbf synthesis and
+        # add the compatibility constraint
+        if deact_cbfs is not None:
+           assert compatible_lagrangian_degree.range_strictly_positive is not None
+        else:
+            assert compatible_lagrangian_degree.range_strictly_positive is None
+        (
+            compatible_lagrangians_synthesis
+        ) = compatible_lagrangian_degree.to_lagrangians(
+            prog=prog,
+            x=compatible_in_range.x_set,
+            y=compatible_in_range.y_set,
+            c_sets=compatible_in_range.c_sets,
+            lagrangian_lambda_y=compatible_lagrangians.lambda_y,
+            lagrangian_xi_y=compatible_lagrangians.xi_y,
+            lagrangian_range_non_negative=compatible_lagrangians.range_non_negative,
+        )
+
+        compatible_in_range.add_compatibility_constraint(
+            prog=prog,
+            xi=xi,
+            lambda_mat=lambda_mat,
+            lagrangians=compatible_lagrangians_synthesis
+        )
+
+        # add ball inclusion constraint if this is the first cbf
+        if ball_inclusion_lagrangian_degree is not None:
+            assert deact_cbfs is None
+            (
+                ball_inclusion_lagrangian_synthesis
+            ) = ball_inclusion_lagrangian_degree.to_lagrangians(
+                prog=prog,
+                x=compatible_in_range.x_set,
+                lagrangian_h=ball_inclusion_lagrangians.h,
+            )
+            self._add_cbf_ball_inclusion_constraint(
+                prog=prog,
+                cbf=cbf_unsolved,
+                ball_radius=self.epsilon_0,
+                ball_inclusion_lagrangian=ball_inclusion_lagrangians
+            )
+        
+        # add unsafe region exclusion constraint
+        (
+            unsafe_exclusion_lagrangian_synthesis
+        ) = safety_lagrangian_degree.to_lagrangians(
+            prog=prog,
+            x=compatible_in_range.x_set,
+            h_lagrangian=safety_lagrangians.h
+        )
+        self._add_cbf_safety_constraint(
+            prog=prog,
+            cbf=cbf_unsolved,
+            unsafe_lagrangians=unsafe_exclusion_lagrangian_synthesis
+        )
+
+        # add point inclusion constraint
+        self._add_cbf_point_inclusion_constraint(
+            prog=prog,
+            cbf=cbf_unsolved,
+            points_to_include=points_to_include,
+            weights_to_include=weights_to_include,
+            anchor_points=anchor_points,
+            anchor_bounds=anchor_bounds
+        )
+
+        # solve the program
+        result = solve_with_id(
+            prog=prog,
+            solver_id=solver_id,
+            solver_options=solver_options
+            )
+
+        if result.is_success():
+            cbf_result = get_polynomial_result(
+                result=result,
+                p=cbf_unsolved,
+                coefficitent_tol=cbf_coeff_tol
+            )
+            return cbf_result
+        else:
+            return None
+    
+    def synthesis_first_cbf(
+        self,
+        cbf_init: sym.Polynomial,
+        points_to_include: np.ndarray,
+        weights_to_include: np.ndarray,
+        anchor_points: Optional[np.ndarray],
+        anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
+        max_iter: int,
+        *,
+        solver_id: Optional[solvers.SolverId] = None,
+        solver_options: Optional[solvers.SolverOptions] = None,
+        lagrangian_coeff_tol: Optional[float] = None,
+        cbf_coeff_tol: Optional[float] = None
+    ) -> Optional[sym.Polynomial]:
+        
+        # create lagrangian degrees:
+        # (1) create ball inclusion lagrangian degree
+        (
+            ball_inclusion_lagrangian_degree
+        ) = self._create_ball_inclusion_lagrangian_degree()
+        # (2) create compatibility and unsafe exclusion lagrangian degrees
+        (
+            compatible_lagrangian_degree,
+            unsafe_exclusion_lagrangian_degree
+        ) = self._create_lagrangian_degrees_cbf_synthesis(
+            cbf_index=0
+        )
+        
+        # start bilinear alternation:
+        iter_count = 1
+        cbf = cbf_init
+        while(iter_count <= max_iter):
+            (
+                compatible_lagrangians,
+                ball_inclusion_lagrangians,
+                unsafe_exclusion_lagrangians
+            ) = self.search_lagrangian_given_cbf(
+                cbf=cbf,
+                deact_cbfs=None,
+                kappah=self.kappah[0],
+                compatible_lagragian_degree=compatible_lagrangian_degree,
+                ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
+                safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+                lagrangian_coeff_tol=lagrangian_coeff_tol,
+                solver_id=solver_id,
+                solver_options=solver_options
+            )
+
+            assert compatible_lagrangians is not None
+            assert ball_inclusion_lagrangians is not None
+            assert unsafe_exclusion_lagrangians is not None
+
+            cbf_updated = self.search_cbf_given_lagrangian(
+                deact_cbfs=None,
+                kappah=self.kappah[0],
+                cbf_degree=self.cbf_x_degrees[0],
+                compatible_lagrangian_degree=compatible_lagrangian_degree,
+                ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
+                safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+                compatible_lagrangians=compatible_lagrangians,
+                ball_inclusion_lagrangians=ball_inclusion_lagrangians,
+                safety_lagrangians=unsafe_exclusion_lagrangians,
+                points_to_include=points_to_include,
+                weights_to_include=weights_to_include,
+                anchor_points=anchor_points,
+                anchor_bounds=anchor_bounds,
+                cbf_coeff_tol=cbf_coeff_tol,
+                solver_id=solver_id,
+                solver_options=solver_options
+            )
+
+            assert cbf_updated is not None
+
+            cbf_evaluation = self._evalueate_cbf_at_points(
+                cbf=cbf_updated,
+                evaluate_at_points=self.points_to_include
+            )
+            print_values = cbf_evaluation
+            print(f"iteration: {iter_count}")
+            print(f"[h1](points_to_include): {print_values}")
+
+            cbf = cbf_updated
+            iter_count += 1
+
+    def synthesis_other_cbf(
+        self,
+        cbf_init: sym.Polynomial,
+        cbf_index: int,
+        deact_cbfs: np.ndarray,
+        points_to_include: np.ndarray,
+        weights_to_include: np.ndarray,
+        anchor_points: Optional[np.ndarray],
+        anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
+        max_iter: int,
+        *,
+        solver_id: Optional[solvers.SolverId] = None,
+        solver_options: Optional[solvers.SolverOptions] = None,
+        lagrangian_coeff_tol: Optional[float] = None,
+        cbf_coeff_tol: Optional[float] = None
+    ) -> Optional[sym.Polynomial]:
+        assert cbf_index > 0
+        assert deact_cbfs.shape[0] == cbf_index
+        # create lagrangian degrees:
+        # (1) this is not for the first cbf, hence, we do not need ball inclusion
+        ball_inclusion_lagrangian_degree = None
+        # (2) create compatibility and unsafe exclusion lagrangian degrees
+        (
+            compatible_lagrangian_degree,
+            unsafe_exclusion_lagrangian_degree
+        ) = self._create_lagrangian_degrees_cbf_synthesis(
+            cbf_index=cbf_index
+        )
+        
+        # start bilinear alternation:
+        iter_count = 1
+        cbf = cbf_init
+        while(iter_count <= max_iter):
+            (
+                compatible_lagrangians,
+                ball_inclusion_lagrangians,
+                unsafe_exclusion_lagrangians
+            ) = self.search_lagrangian_given_cbf(
+                cbf=cbf,
+                deact_cbfs=deact_cbfs,
+                kappah=self.kappah[1],
+                compatible_lagragian_degree=compatible_lagrangian_degree,
+                ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
+                safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+                lagrangian_coeff_tol=lagrangian_coeff_tol,
+                solver_id=solver_id,
+                solver_options=solver_options
+            )
+
+            assert compatible_lagrangians is not None
+            assert ball_inclusion_lagrangians is None
+            assert unsafe_exclusion_lagrangians is not None
+
+            cbf_updated = self.search_cbf_given_lagrangian(
+                deact_cbfs=deact_cbfs,
+                kappah=self.kappah[cbf_index],
+                cbf_degree=self.cbf_x_degrees[cbf_index],
+                compatible_lagrangian_degree=compatible_lagrangian_degree,
+                ball_include_lagrangian_degree=ball_inclusion_lagrangian_degree,
+                safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+                compatible_lagrangians=compatible_lagrangians,
+                ball_inclusion_lagrangians=ball_inclusion_lagrangians,
+                safety_lagrangians=unsafe_exclusion_lagrangians,
+                points_to_include=points_to_include,
+                weights_to_include=weights_to_include,
+                anchor_points=anchor_points,
+                anchor_bounds=anchor_bounds,
+                cbf_coeff_tol=cbf_coeff_tol,
+                solver_id=solver_id,
+                solver_options=solver_options
+            )
+
+            assert cbf_updated is not None
+            cbf_evaluation = self._evalueate_cbf_at_points(
+                cbf=cbf_updated,
+                evaluate_at_points=self.points_to_include
+            )
+            print_values = cbf_evaluation
+            print(f"iteration: {iter_count}")
+            print(f"[h1](points_to_include): {print_values}")
+
+            cbf = cbf_updated
+            iter_count += 1
 
 
 

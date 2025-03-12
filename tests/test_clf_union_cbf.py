@@ -46,8 +46,8 @@ def test_calc_xi_lambda():
     expected_xi = np.array([
         sym.Polynomial(-2*x[0]*x[1] + 1 - x.dot(x) - epsilon),
         sym.Polynomial(-2*x[0]*x[1] - x.dot(x) - epsilon),
-        1 - epsilon,
-        1 - epsilon
+        1,
+        1
     ])
     xi, lambda_ = test_object._calc_xi_lambda(
         kappa_V=kappa_V,

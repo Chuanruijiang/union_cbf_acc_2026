@@ -8,6 +8,41 @@ import pydrake.symbolic as sym
 import pydrake.solvers as solvers
 
 
+def system_linearization(
+        f: np.ndarray,
+        g: np.ndarray,
+        states: np.ndarray,
+        eq_point: Tuple
+    )->Tuple:
+    """
+    This function linearize a non-linear system near the equilibrium point
+    specified by eq_Point. input f and g specifies the nonlinear system
+    x_dot = f(x)+g(x)u, they should be arrays of sym.Polinomials, input eq_point
+    specifies the equilibrium point, this should be a tuple of (x_eq, u_eq).
+    the output is a Tuple (A, B), which specifies the linearized system
+    x_dot = Ax + Bu. 
+    """
+    assert f.shape[0] == g.shape[0]
+    assert f.shape[0] == states.shape[0]
+    
+    x = states
+    u = sym.MakeVectorContinuousVariable(g.shape[1], "u")
+    x_eq = eq_point[0]
+    u_eq = eq_point[1]
+
+    gu = np.dot(g, u)
+    Fxu = f + gu
+    substitution = {x[i]:x_eq[i] for i in range(len(x_eq))}
+    substitution.update({u[i]:u_eq[i] for i in range(len(u_eq))})
+
+    A_symb = sym.Jacobian(Fxu, x)
+    A = sym.Evaluate(A_symb, substitution)
+
+    B = sym.Evaluate(g, substitution)
+
+    return (A, B)
+
+
 def compute_minimum_on_boundary(
     x: sym.Variables,
     p: sym.Polynomial,

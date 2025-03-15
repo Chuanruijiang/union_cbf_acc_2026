@@ -8,7 +8,7 @@ sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
 
 import os.path
 import pickle
-from typing import Optional
+from typing import Optional, Tuple
 import numpy as np
 import matplotlib.axes
 import matplotlib.contour
@@ -19,12 +19,48 @@ from compatible_clf_union_cbf.utils import(
     deserialize_polynomial,
 )
 from dynamics import system_dynamics_forward
-from compatible_clf_union_cbf.controller import cbf_clf_qp
+from compatible_clf_union_cbf.controller import(
+     cbf_clf_qp,
+     compared_cbf_qp,
+     )
 from compatible_clf_union_cbf.plot import(
     plot_2D_function,
-    plot_intersection_region
+    plot_intersection_region,
+    plot_union_region,
 )
 
+def compute_compared_2D_function(
+    x: np.ndarray,
+    h_polys: np.ndarray,
+    smooth_k: float,
+    buffer_b: float,
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+    sampling_rate: int
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Given a set of h_i(x) functions, compute the compared function:
+    h(x) = 1/k * log(sum_i(exp(k * h_i(x))) + b/k
+    """
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(x_range[0], x_range[1], sampling_rate),
+        np.linspace(y_range[0], y_range[1], sampling_rate)
+    )
+    grid_x_val = np.concatenate(
+        [grid_x.reshape(1, -1), grid_y.reshape(1, -1)],
+        axis=0
+    )
+    h_i_values = np.array([
+        h_poly.EvaluateIndeterminates(x, grid_x_val)
+        for h_poly in h_polys
+    ])
+    h_value = (1/smooth_k) * np.log(
+        np.sum(np.exp(smooth_k * h_i_values), axis=0)
+    ) - buffer_b/smooth_k
+
+    compared_cbf_value_grid = h_value.reshape(grid_x.shape)
+
+    return (grid_x, grid_y, compared_cbf_value_grid)
 
 def get_pkl_file_path():
     filename = "single_integrator_synthesized_clf_cbf.pkl"
@@ -51,7 +87,7 @@ def load_clf_cbf(pickle_path: str, x_set: sym.Variables) -> dict:
     ret["kappa_h"] = data["kappa_h"]
     return ret
 
-def main():
+def simulate():
     x = sym.MakeVectorContinuousVariable(2, "x")
     x_set = sym.Variables(x)
     f = system_dynamics_forward()[0]
@@ -89,30 +125,30 @@ def main():
         [-11, -1.5]
     ])
 
-    # # simulate the system:
-    # t_range = np.linspace(0, 15, 1000)
-    # t_delta = t_range[1] - t_range[0]
-    # x_traj = np.zeros((starting_points.shape[0], 2, t_range.shape[0]))
-    # for k in range(starting_points.shape[0]):
-    #     x_start = starting_points[k]
-    #     x_traj[k, :, 0] = x_start
-    #     for i in range(1, t_range.shape[0]):
-    #         u = cbf_clf_qp(
-    #             x_value=x_traj[k, :, i-1],
-    #             x=x,
-    #             f=f,
-    #             g=g,
-    #             V=V,
-    #             h=h,
-    #             kappa_V=kappa_V,
-    #             kappa_h=kappa_h,
-    #             relative_degrees=None,
-    #             Au=None,
-    #             bu=None,
-    #             Q=np.eye(2)
-    #         )
-    #         x_delta = (f + g @ u) * t_delta
-    #         x_traj[k, :, i] = x_traj[k, :, i-1] + x_delta
+    # simulate the system:
+    t_range = np.linspace(0, 15, 1000)
+    t_delta = t_range[1] - t_range[0]
+    x_traj = np.zeros((starting_points.shape[0], 2, t_range.shape[0]))
+    for k in range(starting_points.shape[0]):
+        x_start = starting_points[k]
+        x_traj[k, :, 0] = x_start
+        for i in range(1, t_range.shape[0]):
+            u = cbf_clf_qp(
+                x_value=x_traj[k, :, i-1],
+                x=x,
+                f=f,
+                g=g,
+                V=V,
+                h=h,
+                kappa_V=kappa_V,
+                kappa_h=kappa_h,
+                relative_degrees=None,
+                Au=None,
+                bu=None,
+                Q=np.eye(2)
+            )
+            x_delta = (f + g @ u) * t_delta
+            x_traj[k, :, i] = x_traj[k, :, i-1] + x_delta
 
     # plot the trajectory:
     fig = plt.figure()
@@ -125,9 +161,6 @@ def main():
     ax.set_yticklabels([r"-10", r"-5", r"0", r"5", r"10"], fontsize=16)
     ax.set_xlim(-15, 5)
     ax.set_ylim(-5, 5)
-    # # plot trajectory:
-    # for k in range(starting_points.shape[0]):
-    #     ax.plot(x_traj[k, 0, :], x_traj[k, 1, :], label=f"Trajectory {k}")
     # plot the unsafe region:
     unsafe_polys = np.array([
         sym.Polynomial(x[0] + 5),
@@ -144,23 +177,152 @@ def main():
         sampling_rate=1000
     )
     # plot the safe region:
-    for i in range(len(h)):
-        plot_2D_function(
-            ax=ax,
-            f=h[i],
-            x=x,
-            x_range=(-15, 5),
-            y_range=(-5, 5),
-            sampling_rate=1000
-        )
+    # for i in range(len(h)):
+    #     plot_2D_function(
+    #         ax=ax,
+    #         f=h[i],
+    #         x=x,
+    #         x_range=(-15, 5),
+    #         y_range=(-5, 5),
+    #         sampling_rate=1000,
+    #         color="blue",
+    #         alpha=0.3
+    #     )
+    plot_union_region(
+        ax=ax,
+        p=h,
+        x=x,
+        x_range=(-15, 5),
+        y_range=(-5, 5),
+        sampling_rate=1000
+    )
+
+    # plot trajectory:
+    for k in range(starting_points.shape[0]):
+        ax.plot(x_traj[k, 0, :], x_traj[k, 1, :], label=f"Trajectory {k}")
+
+
     fig.show()
+
+def compare():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    x_set = sym.Variables(x)
+    f = system_dynamics_forward()[0]
+    g = system_dynamics_forward()[1]
+    loading_path = get_pkl_file_path()
+    data = load_clf_cbf(loading_path, x_set)
+    V = data["V"]
+    h = data["h"]
+    kappa_V = data["kappa_V"]
+    kappa_h = data["kappa_h"]
+
+    unsafe_polys = np.array([
+        sym.Polynomial(x[0] + 5),
+        sym.Polynomial(-x[0] - 3),
+        sym.Polynomial(x[1] + 1),
+        sym.Polynomial(-x[1] + 1),
+    ])
+
+    # starting point:
+    x_start = np.array([-11, 0])
+    t_range = np.linspace(0, 15, 1000)
+    t_delta = t_range[1] - t_range[0]
+    x_traj1 = np.zeros((2, t_range.shape[0]))
+    x_traj2 = np.zeros((2, t_range.shape[0]))
+    x_traj1[:, 0] = x_start
+    x_traj2[:, 0] = x_start
+    for i in range(1, t_range.shape[0]):
+        u_1 = compared_cbf_qp(
+            x_value=x_traj1[:, i-1],
+            x=x,
+            f=f,
+            g=g,
+            h_polys=-unsafe_polys,
+            kappa_h=1,
+            K_desired_control = 0.5,
+            smooth_k=2,
+            buffer_b=np.log(unsafe_polys.shape[0])
+        )
+        x_delta = (f + g @ u_1) * t_delta
+        x_traj1[:, i] = x_traj1[:, i-1] + x_delta
+        
+        u_2 = cbf_clf_qp(
+            x_value=x_traj2[:, i-1],
+            x=x,
+            f=f,
+            g=g,
+            V=V,
+            h=h,
+            kappa_V=kappa_V,
+            kappa_h=kappa_h,
+            relative_degrees=None,
+            Au=None,
+            bu=None,
+            Q=np.eye(2)
+        )
+        x_delta = (f + g @ u_2) * t_delta
+        x_traj2[:, i] = x_traj2[:, i-1] + x_delta
     
-def compaired_method():
-    # use this function to define the method  to compare
-    # 
+    # plot the trajectory:
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.set_xlabel(r"$x_1$", fontsize=16)
+    ax.set_ylabel(r"$x_2$", fontsize=16)
+    ax.set_xticks([-15, -10, -5, 0, 5])
+    ax.set_yticks([-10, -5, 0, 5, 10])
+    ax.set_xticklabels([r"-15", r"-10", r"-5", r"0", r"5"], fontsize=16)
+    ax.set_yticklabels([r"-10", r"-5", r"0", r"5", r"10"], fontsize=16)
+    ax.set_xlim(-15, 5)
+    ax.set_ylim(-5, 5)
+    # plot trajectory:
+    ax.plot(x_traj1[0, :], x_traj1[1, :], label="Compared_Trajectory", color="blue")
+    ax.plot(x_traj2[0, :], x_traj2[1, :], label="CLF-CBF-QP", color="green")
+    # plot the unsafe region:
+    plot_intersection_region(
+        ax=ax,
+        p=unsafe_polys,
+        x=x,
+        x_range=(-15, 5),
+        y_range=(-5, 5),
+        sampling_rate=1000
+    )
+    # # plot the safe region:
+    # plot_union_region(
+    #     ax=ax,
+    #     p=-unsafe_polys,
+    #     x=x,
+    #     x_range=(-15, 5),
+    #     y_range=(-5, 5),
+    #     sampling_rate=1000
+    # )
+    # compute the h_value of syntheized h(x):
+    union_h_info = compute_compared_2D_function(
+        x=x,
+        h_polys=-unsafe_polys,
+        smooth_k=2,
+        buffer_b=np.log(unsafe_polys.shape[0]),
+        x_range=(-15, 5),
+        y_range=(-5, 5),
+        sampling_rate=1000
+    )
+    # plot the compared h(x):
+    # plot_2D_function(
+    #     ax=ax,
+    #     f=union_h_info,
+    #     x=x,
+    #     x_range=(-15, 5),
+    #     y_range=(-5, 5),
+    #     sampling_rate=1000,
+    #     color="blue",
+    #     alpha=0.3
+    # )
+
+    fig.show()
 
 
-
+def main():
+    # simulate()
+    compare()
 
 
 if __name__ == "__main__":

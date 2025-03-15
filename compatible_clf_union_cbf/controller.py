@@ -74,3 +74,87 @@ def cbf_clf_qp(
     u_val = result.GetSolution(u)
 
     return u_val
+
+def compared_cbf_qp(
+    x_value: np.ndarray,
+    x: np.ndarray,
+    f: np.ndarray,
+    g: np.ndarray,
+    h_polys: np.ndarray,
+    kappa_h: float,
+    K_desired_control: float,
+    smooth_k: float,
+    buffer_b: float
+) -> np.ndarray:
+    """
+    This function simulates the cbf rule proposed in the "union of sets" 
+    section of the following paper:
+    "Composing Control Barrier Functions for Complex Safety Specifications" 
+    by Tamas Molnar et al.
+    """
+    assert x_value.shape[0] == x.shape[0]
+    assert f.shape[0] == x.shape[0]
+    assert g.shape[0] == f.shape[0]
+    num_u = g.shape[1]
+    # compute each h_i(x) in h_polys at x_value:
+    h_i_values = np.array([
+        h_poly.EvaluateIndeterminates(x, x_value)[0]
+        for h_poly in h_polys
+    ])
+    # compute the union cbf h(x):
+    h_value = (1/smooth_k) * np.log(
+        np.sum(np.exp(smooth_k * h_i_values))
+    ) - buffer_b/smooth_k
+    # compute λ(x):
+    lambda_i_values = np.exp(smooth_k * h_i_values - smooth_k * (h_value + buffer_b))
+    # compute Lfh_i(x):
+    num_h_i = h_polys.shape[0]
+    Lfh_i_values = np.zeros((num_h_i,))
+    for i in range(num_h_i):
+        Lfh_i_values[i] = utils.lie_derivative(
+            poly=h_polys[i],
+            vector_feild=f,
+            variables=x,
+            pow=1
+        ).EvaluateIndeterminates(x, x_value)[0]
+    # compute Lgh_i(x):
+    Lgh_i_values = np.zeros((num_h_i, num_u))
+    for i in range(num_h_i):
+        Lgh_i = utils.lie_derivative(
+            poly=h_polys[i],
+            vector_feild=g,
+            variables=x,
+            pow=1
+        )
+        for j in range(num_u):
+            Lgh_i_values[i, j] = (
+                Lgh_i[j].EvaluateIndeterminates(x, x_value)
+                )
+    # compute Lfh(x) and Lgh(x) at x_value:
+    Lf_h_value = np.dot(lambda_i_values, Lfh_i_values)
+    Lg_h_value = np.dot(lambda_i_values, Lgh_i_values)
+    # compute desired control input:
+    x_goal = np.array([0, 0])
+    Kp = K_desired_control
+    u_d = Kp * (x_goal - x_value)
+    
+    # For the CBF-QP:
+    prog = solvers.MathematicalProgram()
+    u = prog.NewContinuousVariables(2, "u")
+    cost = (u - u_d).dot(u - u_d)
+    prog.AddQuadraticCost(cost)
+    prog.AddLinearConstraint(
+        a=Lg_h_value,
+        lb=-Lf_h_value - kappa_h*h_value,
+        ub=np.inf,
+        vars=u,
+    )
+
+    result = solvers.Solve(prog)
+    assert result.is_success()
+    u_val = result.GetSolution(u)
+    return u_val
+    
+    
+    
+

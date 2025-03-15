@@ -15,7 +15,9 @@ def plot_2D_function(
     x: Optional[np.ndarray],
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
-    sampling_rate: int
+    sampling_rate: int,
+    color: str,
+    alpha: float
 ):
     """
     Given a function f(x) defined over a 2D domain, plot the superlvel set
@@ -41,14 +43,15 @@ def plot_2D_function(
         grid_y = f[1]
         grid_f = f[2]
     
-    f_contour = ax.contour(grid_x, grid_y, grid_f, levels=[0], colors='blue')
+    f_contour = None
+    # f_contour = ax.contour(grid_x, grid_y, grid_f, levels=[0], colors=color)
     f_positive_region = ax.contourf(
         grid_x,
         grid_y,
         grid_f,
         levels=[0, np.inf],
-        colors='blue',
-        alpha=0.4
+        colors=color,
+        alpha=alpha
         )
     
     return f_contour, f_positive_region
@@ -92,6 +95,42 @@ def plot_intersection_region(
     return intersection_region
 
     
+def plot_union_region(
+    ax: matplotlib.axes.Axes,
+    p: np.ndarray,
+    x: np.ndarray,
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+    sampling_rate: int
+):
+    """
+    In this function, we plot the union of p_i(x) >= 0 for all i.
+    """
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(x_range[0], x_range[1], sampling_rate),
+        np.linspace(y_range[0], y_range[1], sampling_rate)
+        )
+    grid_x_val = np.concatenate(
+        [grid_x.reshape(1, -1), grid_y.reshape(1, -1)],
+        axis=0
+        )
+    num_p = p.shape[0]
+    p_grid_values = np.zeros(shape=(num_p, grid_x.shape[1], grid_x.shape[0]))
+    for i in range(num_p):
+        p_vals = p[i].EvaluateIndeterminates(x, grid_x_val)
+        p_grid = p_vals.reshape(grid_x.shape)
+        p_grid_values[i, :, :] = p_grid
+    
+    intersection = np.max(p_grid_values, axis=0)
+    intersection_region = ax.contourf(
+        grid_x,
+        grid_y,
+        intersection,
+        levels=[0, np.inf],
+        colors='blue',
+        alpha=0.3
+    )
+    return intersection_region
 
 
 

@@ -508,7 +508,6 @@ class CbfConstraint:
         relative_degree: Optional[int],
     ):
         if relative_degree is None:
-            assert isinstance(kappa, float)
             relative_degree = 1
             kappa = [kappa]
         else:

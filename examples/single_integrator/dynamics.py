@@ -20,7 +20,7 @@ def system_dynamics()->Tuple[np.ndarray, np.ndarray]:
         ])
     return f, g
 
-def system_dynamics_forward(u: np.ndarray):
+def system_dynamics_forward()->Tuple[np.ndarray, np.ndarray]:
     """
     We can use this function when doing real time simulations
     """
@@ -29,4 +29,4 @@ def system_dynamics_forward(u: np.ndarray):
         [1, 0],
         [0, 1]
     ])
-    return f + g @ u
+    return f, g

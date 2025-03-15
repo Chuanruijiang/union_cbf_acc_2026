@@ -2,10 +2,17 @@ import os
 import sys
 sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
 
+import os
+import os.path
+import pickle
+from typing import Optional
 import numpy as np
 import pydrake.symbolic as sym
+
 from compatible_clf_union_cbf.utils import(
-    compute_minimum_on_boundary
+    compute_minimum_on_boundary,
+    serialize_polynomial,
+    deserialize_polynomial,
 )
 from compatible_clf_union_cbf.clf import(
     ClfSynthesis
@@ -13,18 +20,53 @@ from compatible_clf_union_cbf.clf import(
 from compatible_clf_union_cbf.union_cbf import(
     UnionCbfSynthesisGivenClf
 )
-from compatible_clf_union_cbf.clf_union_cbf import(
-    save_clf_cbf,
-    load_clf_cbf
-)
+
 from dynamics import system_dynamics
 
 def get_pkl_file_path():
-    filename = "single_integrator_clf_cbf.pkl"
+    filename = "single_integrator_synthesized_clf_cbf.pkl"
     path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
     return path
+
+
+def save_clf_cbf(
+    V: Optional[sym.Polynomial],
+    h: np.ndarray,
+    x_set: sym.Variables,
+    kappa_V: Optional[float],
+    kappa_h: np.ndarray,
+    pickle_path: str,
+):
+    """
+    Save the CLF and CBF to a pickle file.
+    """
+    _, file_extension = os.path.splitext(pickle_path)
+    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
+    data = {}
+    if V is not None:
+        data["V"] = serialize_polynomial(V, x_set)
+    data["h"] = [serialize_polynomial(h_i, x_set) for h_i in h]
+    if kappa_V is not None:
+        data["kappa_V"] = kappa_V
+    data["kappa_h"] = kappa_h
+
+    if os.path.exists(pickle_path):
+        overwrite_cmd = input(
+            f"File {pickle_path} already exists. Overwrite the file? Press [Y/n]:"
+        )
+        if overwrite_cmd in ("Y", "y"):
+            save_cmd = True
+        else:
+            save_cmd = False
+    else:
+        save_cmd = True
+
+    if save_cmd:
+        with open(pickle_path, "wb") as handle:
+            pickle.dump(data, handle)
+
 
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
@@ -210,6 +252,17 @@ def main():
     )
 
     assert cbf_3_result is not None
+
+    # Save the results:
+    save_clf_cbf(
+        V=V_result,
+        h=np.array([cbf_1_result, cbf_2_result, cbf_3_result]),
+        x_set=x,
+        kappa_V=kappaV,
+        kappa_h=kappah,
+        pickle_path=get_pkl_file_path()
+    )
+
 
     
 

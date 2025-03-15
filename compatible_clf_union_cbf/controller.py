@@ -33,9 +33,27 @@ def cbf_clf_qp(
     # initialize the clf and cbf constraint objects:
     clf_constraint = clf.ClfConstraint(V, f, g, x, kappa_V)
     cbf_constraints = [
-        cbf.CbfConstraint(h[i], f, g, x, kappa_h[i], relative_degrees[i])
+        cbf.CbfConstraint(
+            h=h[i],
+            f=f,
+            g=g,
+            x=x,
+            kappa=kappa_h[i],
+            relative_degree=(
+                relative_degrees[i]
+                if relative_degrees is not None
+                else None)
+            )
         for i in range(h.shape[0])
     ]
+
+    # the input CBFs are assumed to be in the order of [h0, h1, h2, ...], 
+    activated_idx = 0
+    for i in range(h.shape[0]):
+        if h[i].EvaluateIndeterminates(x, x_value) >= 0:
+            activated_idx = i
+            break
+
     # create the QP:
     prog = solvers.MathematicalProgram()
     nu = g.shape[1]
@@ -45,8 +63,7 @@ def cbf_clf_qp(
     # (2)add the clf constraint:
     clf_constraint.add_to_prog(prog, x_value, u)
     # (3)add the cbf constraints:
-    for each_cbf_constraint in cbf_constraints:
-        each_cbf_constraint.add_to_prog(prog, x_value, u)
+    cbf_constraints[activated_idx].add_to_prog(prog, x_value, u)
     # (4)add the input limit constraints:
     if Au is not None:
         assert bu is not None

@@ -154,7 +154,5 @@ def compared_cbf_qp(
     assert result.is_success()
     u_val = result.GetSolution(u)
     return u_val
-    
-    
-    
+
 

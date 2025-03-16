@@ -27,10 +27,10 @@ from compatible_clf_union_cbf.clf_union_cbf import(
 from dynamics import system_dynamics
 
 def main():
-    x = sym.MakeVectorContinuousVariable(4, "x")
+    x = sym.MakeVectorContinuousVariable(3, "x")
     f, g = system_dynamics(x)
 
-    x_eq = np.array([0, 0, 0, 0])
+    x_eq = np.array([0, 0, 0])
     u_eq = np.array([0, 0])
 
     eq_point = (x_eq, u_eq)
@@ -48,16 +48,24 @@ def main():
     # control cost, we put more weight on the velocity than the
     # angular velocity.
     R = np.eye(2)
-    Q = np.eye(4)
-    F = np.array([[0, 0, 0, 2]]) # linearization of the state eq-const
+    Q = np.eye(3)
+    F = np.array([[0, 0, 2]]) # linearization of the state eq-const
 
     _, S_lqr = controllers.LinearQuadraticRegulator(A, B, Q, R, F=F)
 
     V_init = sym.Polynomial(np.dot(x, np.dot(S_lqr, x)))
 
+    # Now we have the initial CLF, we will continue to find the
+    # bias for the CLF expression so that the stabile region
+    # {x| V(x) <= 1} includes the ball B(0, epsilon_0).
+    epsilon_0 = 0.5
+    bias_start = 1
+    bias_end = 1e6
+    bias = bias_start
+    while(bias <= bias_end):
+        
+        
+
 if __name__ == "__main__":
     main()
-
-    
-
 

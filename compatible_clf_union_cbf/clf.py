@@ -11,6 +11,7 @@ from compatible_clf_union_cbf.utils import (
     lie_derivative,
     solve_with_id,
     new_sos_polynomial,
+    BackoffScale
 )
 from compatible_clf_union_cbf.inclusion import(
     BallInclusionLagrangianDegree,
@@ -99,6 +100,7 @@ class ClfLagrangianDegree:
         lagrangian_lambda_y: Optional[List[np.ndarray]] = None,
         lagrangian_xi_y: Optional[np.ndarray] = None,
         lagrangian_rho_minus_V: Optional[np.ndarray] = None,
+        lagrangian_state_eq_constraints: Optional[List[np.ndarray]] = None
     ) -> ClfLagrangian:
         lambda_y_lagrangians = to_lagrangian_impl(
             prog=prog,
@@ -141,7 +143,8 @@ class ClfLagrangianDegree:
                 c=None,
                 sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
                 is_sos=True,
-                degree=self.state_eq_constraints
+                degree=self.state_eq_constraints,
+                lagrangian=lagrangian_state_eq_constraints
             )
         else:
             state_eq_constraints_lagrangians = None
@@ -178,7 +181,7 @@ class ClfSynthesis:
 
         if Au is not None:
             assert bu is not None
-            assert Au.shape[0] == sys_dyn_g.shape[0]
+            assert Au.shape[1] == sys_dyn_g.shape[1]
         assert sys_dyn_f.shape[0] == self.x.size
         assert len(sys_dyn_g.shape) == 2
         assert sys_dyn_g.shape[0] == self.x.size
@@ -326,7 +329,7 @@ class ClfSynthesis:
             rho_minus_V=Degree(x=clf_lagrangain_rho_minus_V_x_degree, y=2, c=0),
             state_eq_constraints=(
                 [
-                    Degree(x=state_eq_constraints_x_degree[i], y=0, c=0)
+                    Degree(x=state_eq_constraints_x_degree[i], y=2, c=0)
                     for i in range(len(state_eq_constraints_x_degree))
                 ] 
                 if state_eq_constraints_x_degree is not None 
@@ -424,12 +427,40 @@ class ClfSynthesis:
         anchor_points: Optional[np.ndarray],
         acnhor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
         *,
+        ball_inclusion_degrees: Optional[BallInclusionLagrangianDegree] = None,
+        clf_lagrangian_degree: Optional[ClfLagrangianDegree] = None,
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
+        backoff_rel_scale: Optional[float] = None,
+        backoff_abs_scale: Optional[float] = None,
         clf_coeff_tol: Optional[float] = None,
     ) -> Optional[sym.Polynomial]:
         prog = solvers.MathematicalProgram()
         prog.AddIndeterminates(self.xy_set)
+
+        if ball_inclusion_degrees is not None:
+            (
+                new_ball_inclusion_lagrangian
+            ) = ball_inclusion_degrees.to_lagrangians(
+                prog=prog,
+                x=self.x_set,
+                lagrangian_h=ball_inclusion_lagrangian.h,
+            )
+        else: 
+            new_ball_inclusion_lagrangian = ball_inclusion_lagrangian
+        if clf_lagrangian_degree is not None:
+            (
+                new_clf_lagrangian
+            ) = clf_lagrangian_degree.to_lagrangians(
+                prog=prog,
+                x=self.x_set,
+                y=self.y_set,
+                lagrangian_lambda_y=clf_lagrangian.lambda_y,
+                lagrangian_xi_y=clf_lagrangian.xi_y,
+                lagrangian_rho_minus_V=clf_lagrangian.rho_minus_V,
+            )
+        else:
+            new_clf_lagrangian = clf_lagrangian
         
         V_unsolved,_ = new_sos_polynomial(
             prog=prog,
@@ -444,7 +475,7 @@ class ClfSynthesis:
         )
         self._add_clf_constraint(
             prog=prog,
-            lagrangian=clf_lagrangian,
+            lagrangian=new_clf_lagrangian,
             lambda_mat=lambda_matrix,
             xi=xi_vec,
             clf=V_unsolved,
@@ -455,7 +486,7 @@ class ClfSynthesis:
             ball_radius=ball_radius,
             clf=V_unsolved,
             rho=rho,
-            ball_inclusion_lagrangian=ball_inclusion_lagrangian
+            ball_inclusion_lagrangian=new_ball_inclusion_lagrangian
         )
         self._add_points_inclusion_constraint(
             prog=prog,
@@ -470,7 +501,9 @@ class ClfSynthesis:
         result = solve_with_id(
             prog=prog,
             solver_id=solver_id,
-            solver_options=solver_options
+            solver_options=solver_options,
+            backoff_rel_scale=backoff_rel_scale,
+            backoff_abs_scale=backoff_abs_scale
         )
 
         if result.is_success():
@@ -505,7 +538,8 @@ class ClfSynthesis:
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
         lagrangian_coeff_tol: Optional[float] = None,
-        clf_coeff_tol: Optional[float] = None
+        clf_coeff_tol: Optional[float] = None,
+        backoff_scale: Optional[BackoffScale] = None
     ) -> Optional[sym.Polynomial]:
         (
             ball_inclusion_lagragian_degree,
@@ -551,8 +585,16 @@ class ClfSynthesis:
                 points_inclusion_weights=points_inclusion_weights,
                 anchor_points=anchor_points,
                 acnhor_bounds=anchor_bounds,
+                ball_inclusion_degrees=ball_inclusion_lagragian_degree,
+                clf_lagrangian_degree=clf_lagrangian_degree,
                 solver_id=solver_id,
                 solver_options=solver_options,
+                backoff_rel_scale=(
+                        None if backoff_scale is None else backoff_scale.rel
+                    ),
+                    backoff_abs_scale=(
+                        None if backoff_scale is None else backoff_scale.abs
+                    ),
                 clf_coeff_tol=clf_coeff_tol
             )
 
@@ -568,6 +610,7 @@ class ClfSynthesis:
             
             clf = clf_updated
             iter_num += 1
+
         
         return clf
 

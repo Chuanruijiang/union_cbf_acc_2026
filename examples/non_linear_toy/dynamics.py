@@ -19,7 +19,9 @@ import numpy as np
 import pydrake.symbolic as sym
 from typing import Tuple
 
-def system_dynamics(x:np.ndarray)->Tuple[np.ndarray, np.ndarray]:
+def system_dynamics(
+    x:np.ndarray
+)->Tuple[np.ndarray, np.ndarray]:
     """
     This function defines the system dyanmics of the turtle bot.
     """
@@ -36,7 +38,10 @@ def system_dynamics(x:np.ndarray)->Tuple[np.ndarray, np.ndarray]:
     return f, g
 
 
-def system_dynamics_forward(x:np.ndarray, u: np.ndarray) -> np.ndarray:
+def system_dynamics_forward(
+    x:np.ndarray,
+    u: np.ndarray
+)->np.ndarray:
     """
     This function defines the system dyanmics of the turtle bot.
     """
@@ -49,8 +54,40 @@ def system_dynamics_forward(x:np.ndarray, u: np.ndarray) -> np.ndarray:
     return f + g @ u
 
 
-def state_equation_constraint(x:np.ndarray)->np.ndarray:
+def state_equation_constraint(
+    x:np.ndarray
+)->np.ndarray:
     """
     This function defines the state equation constraint of the turtle bot.
     """
     return np.array([x[1]**2 + x[2]**2 + 2*x[2]])
+
+
+def control_limits()->Tuple[np.ndarray, np.ndarray]:
+    """
+    This function defines the control limits of the turtle bot.
+    """
+    Au = np.array([
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1]
+    ])
+
+    bu = np.array([np.pi/2, np.pi/2, 0.5, 0.5])
+
+    return Au, bu
+
+
+def original_to_extended_state_space(
+    input_points: np.ndarray
+)->np.ndarray:
+    assert len(input_points.shape) == 2
+    assert input_points.shape[1] == 2
+    num_points = input_points.shape[0]
+    output_points = np.zeros((num_points, 3))
+    output_points[:, 0] = input_points[:, 0]
+    output_points[:, 1] = np.sin(input_points[:, 1])
+    output_points[:, 2] = np.cos(input_points[:, 1]) - 1
+    return output_points
+    

@@ -15,6 +15,7 @@ from compatible_clf_union_cbf.utils import (
     Degree,
     to_lagrangian_impl,
     is_sos,
+    BackoffScale
 )
 from compatible_clf_union_cbf.inclusion import(
     BallInclusionLagrangian,
@@ -679,7 +680,7 @@ class CompatibilityLagragianDegrees:
                 prog,
                 x,
                 y=y,
-                c=(c_sets[-1] if c_sets[-1] is not None else None),
+                c=(c_sets[-1] if c_sets is not None else None),
                 sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
                 is_sos=False,
                 degree=self.state_eq_constraints,
@@ -1155,7 +1156,8 @@ class UnionCbfSynthesisGivenClf:
         c_vars: Tuple[np.ndarray, np.ndarray, np.ndarray],
         cbf_coeff_tol: Optional[float],
         solver_id: Optional[solvers.SolverId],
-        solver_options: Optional[solvers.SolverOptions]
+        solver_options: Optional[solvers.SolverOptions],
+        back_off_scale: Optional[BackoffScale]
     ) -> Optional[sym.Polynomial]:
         # initialize the program
         prog = solvers.MathematicalProgram()
@@ -1249,7 +1251,9 @@ class UnionCbfSynthesisGivenClf:
         result = solve_with_id(
             prog=prog,
             solver_id=solver_id,
-            solver_options=solver_options
+            solver_options=solver_options,
+            backoff_rel_scale=back_off_scale.rel,
+            backoff_abs_scale=back_off_scale.abs
             )
 
         if result.is_success():
@@ -1274,7 +1278,8 @@ class UnionCbfSynthesisGivenClf:
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
         lagrangian_coeff_tol: Optional[float] = None,
-        cbf_coeff_tol: Optional[float] = None
+        cbf_coeff_tol: Optional[float] = None,
+        back_off_scale: Optional[List[BackoffScale]]=None
     ) -> Optional[sym.Polynomial]:
         
         # create lagrangian degrees:
@@ -1295,6 +1300,10 @@ class UnionCbfSynthesisGivenClf:
         # start bilinear alternation:
         iter_count = 1
         cbf = cbf_init
+        if back_off_scale is not None:
+            assert len(back_off_scale) == max_iter
+        else:
+            back_off_scale = [None]*max_iter
         while(iter_count <= max_iter):
             (
                 compatible_lagrangians,
@@ -1333,6 +1342,7 @@ class UnionCbfSynthesisGivenClf:
                 anchor_bounds=anchor_bounds,
                 c_vars=c_vars,
                 cbf_coeff_tol=cbf_coeff_tol,
+                back_off_scale=back_off_scale[iter_count-1],
                 solver_id=solver_id,
                 solver_options=solver_options
             )
@@ -1367,7 +1377,8 @@ class UnionCbfSynthesisGivenClf:
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
         lagrangian_coeff_tol: Optional[float] = None,
-        cbf_coeff_tol: Optional[float] = None
+        cbf_coeff_tol: Optional[float] = None,
+        back_off_scale: Optional[List[BackoffScale]]=None
     ) -> Optional[sym.Polynomial]:
         assert cbf_index > 0
         assert deact_cbfs.shape[0] == cbf_index
@@ -1388,6 +1399,10 @@ class UnionCbfSynthesisGivenClf:
         # start bilinear alternation:
         iter_count = 1
         cbf = cbf_init
+        if back_off_scale is not None:
+            assert len(back_off_scale) == max_iter
+        else:
+            back_off_scale = [None]*max_iter
         while(iter_count <= max_iter):
             (
                 compatible_lagrangians,
@@ -1430,7 +1445,8 @@ class UnionCbfSynthesisGivenClf:
                 c_vars=c_vars,
                 cbf_coeff_tol=cbf_coeff_tol,
                 solver_id=solver_id,
-                solver_options=solver_options
+                solver_options=solver_options,
+                back_off_scale=back_off_scale[iter_count-1]
             )
 
             assert cbf_updated is not None

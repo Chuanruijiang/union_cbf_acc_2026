@@ -29,12 +29,9 @@ from dynamics import(
 
 
 def get_pkl_file_path(
-    name_file: str = None
+    name_file: str
 ):  
-    if name_file is not None:
-        filename = name_file
-    else:
-        filename = "non_linear_toy_clf_init.pkl"
+    filename = name_file
     path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
@@ -114,13 +111,43 @@ def save_synthesized_cbf(
         with open(pickle_path, "wb") as handle:
             pickle.dump(data, handle)
 
+def save_synthesis_results(
+    V_res: sym.Polynomial,
+    h_res: np.ndarray,
+    x_set: sym.Variables,
+    pickle_path: str,
+):
+    _, file_extension = os.path.splitext(pickle_path)
+    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
+    data = {}
+    
+    data["V"] = serialize_polynomial(V_res, x_set)
+    data["h"] = [serialize_polynomial(h_i, x_set) for h_i in h_res]
+
+    if os.path.exists(pickle_path):
+        overwrite_cmd = input(
+            f"File {pickle_path} already exists. Overwrite the file? Press [Y/n]:"
+        )
+        if overwrite_cmd in ("Y", "y"):
+            save_cmd = True
+        else:
+            save_cmd = False
+    else:
+        save_cmd = True
+
+    if save_cmd:
+        with open(pickle_path, "wb") as handle:
+            pickle.dump(data, handle)
+
 def main():
     pi = np.pi
     x = sym.MakeVectorContinuousVariable(3, "x")
     x_set = sym.Variables(x)
     
     data = load_clf(
-        pickle_path=get_pkl_file_path(),
+        pickle_path=get_pkl_file_path(
+            name_file="non_linear_toy_clf_init.pkl"
+        ),
         x_set=x_set
     )
     V_init = data["V"]
@@ -175,27 +202,27 @@ def main():
         )
     points_inlusion_weights = np.ones(points_to_include.shape[0])
     
-    # # synthesize the clf
-    # V_result = clf_synthesis.bilinear_alternation(
-    #     clf_init=V_init,
-    #     rho=rho,
-    #     kappaV=kappaV+kappa_diff,
-    #     ball_radius=epsilon_0,
-    #     ball_inclusion_ball_x_degree=2,
-    #     ball_inclusion_h_x_degree=2,
-    #     clf_lagrangain_lambda_y_x_degree=[2, 2],
-    #     clf_lagrangain_xi_y_x_degree=2,
-    #     clf_lagrangain_rho_minus_V_x_degree=2,
-    #     V_x_degree=2,
-    #     included_points=points_to_include,
-    #     points_inclusion_weights=np.ones(points_to_include.shape[0]),
-    #     state_eq_constraints_x_degree=[2],
-    #     anchor_points=None,
-    #     anchor_bounds=None,
-    #     max_iter=20,
-    #     lagrangian_coeff_tol=1e-3,
-    # )
-    # assert V_result is not None
+    # synthesize the clf
+    V_result = clf_synthesis.bilinear_alternation(
+        clf_init=V_init,
+        rho=rho,
+        kappaV=kappaV+kappa_diff,
+        ball_radius=epsilon_0,
+        ball_inclusion_ball_x_degree=2,
+        ball_inclusion_h_x_degree=2,
+        clf_lagrangain_lambda_y_x_degree=[2, 2],
+        clf_lagrangain_xi_y_x_degree=2,
+        clf_lagrangain_rho_minus_V_x_degree=2,
+        V_x_degree=2,
+        included_points=points_to_include,
+        points_inclusion_weights=np.ones(points_to_include.shape[0]),
+        state_eq_constraints_x_degree=[2],
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=20,
+        lagrangian_coeff_tol=1e-3,
+    )
+    assert V_result is not None
 
     # save_synthesized_clf(
     #     V=V_result,
@@ -203,11 +230,11 @@ def main():
     #     pickle_path=get_pkl_file_path("non_linear_toy_clf_synthesized.pkl")
     # )
 
-    data = load_clf(
-        pickle_path=get_pkl_file_path("non_linear_toy_clf_synthesized.pkl"),
-        x_set=x_set
-    )
-    V_result = data["V"]
+    # data = load_clf(
+    #     pickle_path=get_pkl_file_path("non_linear_toy_clf_synthesized.pkl"),
+    #     x_set=x_set
+    # )
+    # V_result = data["V"]
 
     # compute epsilon for CBF synthesis:
     V_min = compute_minimum_on_boundary(
@@ -247,16 +274,16 @@ def main():
         safety_unsafe_polys_x_degree=[2, 2]
     )
 
-    # # synthesis the first cbf:
-    # cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
-    #     cbf_init=sym.Polynomial(x[1] - np.sin(-pi/6)),
-    #     points_to_include=points_to_include,
-    #     weights_to_include=np.ones(points_to_include.shape[0]),
-    #     anchor_points=None,
-    #     anchor_bounds=None,
-    #     max_iter=10
-    # )
-    # assert cbf_1_result is not None
+    # synthesis the first cbf:
+    cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
+        cbf_init=sym.Polynomial(x[1] - np.sin(-pi/6)),
+        points_to_include=points_to_include,
+        weights_to_include=np.ones(points_to_include.shape[0]),
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=10
+    )
+    assert cbf_1_result is not None
 
     # save_synthesized_cbf(
     #     h=cbf_1_result,
@@ -264,11 +291,11 @@ def main():
     #     pickle_path=get_pkl_file_path("non_linear_toy_cbf_1_synthesized.pkl")
     # )
 
-    data = load_cbf(
-        pickle_path=get_pkl_file_path("non_linear_toy_cbf_1_synthesized.pkl"),
-        x_set=x_set
-    )
-    cbf_1_result = data["h"]
+    # data = load_cbf(
+    #     pickle_path=get_pkl_file_path("non_linear_toy_cbf_1_synthesized.pkl"),
+    #     x_set=x_set
+    # )
+    # cbf_1_result = data["h"]
 
     (
         points_to_include,
@@ -280,7 +307,7 @@ def main():
     )
     
 
-    # synthesis the second cbf:
+    # synthesize the second cbf:
     back_off_scales = [
         BackoffScale(rel=0.02, abs=None),
         BackoffScale(rel=0.02, abs=None),
@@ -307,10 +334,13 @@ def main():
     )
     assert cbf_2_result is not None
 
-    save_synthesized_cbf(
-        h=cbf_2_result,
+    h_results = np.array([cbf_1_result, cbf_2_result])
+
+    save_synthesis_results(
+        V_res=V_result,
+        h_res=h_results,
         x_set=x_set,
-        pickle_path=get_pkl_file_path("non_linear_toy_cbf_2_synthesized.pkl")
+        pickle_path=get_pkl_file_path("non_linear_toy_clf_union_cbf_synthesized.pkl")
     )
 
 

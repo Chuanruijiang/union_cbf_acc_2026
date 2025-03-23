@@ -1252,8 +1252,14 @@ class UnionCbfSynthesisGivenClf:
             prog=prog,
             solver_id=solver_id,
             solver_options=solver_options,
-            backoff_rel_scale=back_off_scale.rel,
-            backoff_abs_scale=back_off_scale.abs
+            backoff_rel_scale=(
+                back_off_scale.rel 
+                if back_off_scale is not None 
+                else None),
+            backoff_abs_scale=(
+                back_off_scale.abs 
+                if back_off_scale is not None 
+                else None)
             )
 
         if result.is_success():

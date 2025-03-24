@@ -27,6 +27,7 @@ from compatible_clf_union_cbf.plot import(
     plot_2D_function,
     plot_intersection_region,
     plot_union_region,
+    plot_compatible_region
 )
 
 def compute_compared_2D_function(
@@ -63,7 +64,7 @@ def compute_compared_2D_function(
     return (grid_x, grid_y, compared_cbf_value_grid)
 
 def get_pkl_file_path():
-    filename = "single_integrator_synthesized_clf_cbf.pkl"
+    filename = "single_integrator_synthesized_clf_union_cbf.pkl"
     path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
@@ -113,8 +114,15 @@ def simulate():
         [-3.5, 2.2],
         [-5, 1.5],
         [-5, 2.3],
+        [-6, 0.8],
+        [-7, 0],
+        [-7, 0.5],
         [-8, 1],
         [-8, 2.5],
+        [-8, 0],
+        [-8, 0.5],
+        [-9, 0],
+        [-9, 1],
         [-10, 0],
         [-10, 1.5],
         [-10.5, 2],
@@ -125,42 +133,47 @@ def simulate():
         [-11, -1.5]
     ])
 
-    # simulate the system:
-    t_range = np.linspace(0, 15, 1000)
-    t_delta = t_range[1] - t_range[0]
-    x_traj = np.zeros((starting_points.shape[0], 2, t_range.shape[0]))
-    for k in range(starting_points.shape[0]):
-        x_start = starting_points[k]
-        x_traj[k, :, 0] = x_start
-        for i in range(1, t_range.shape[0]):
-            u = cbf_clf_qp(
-                x_value=x_traj[k, :, i-1],
-                x=x,
-                f=f,
-                g=g,
-                V=V,
-                h=h,
-                kappa_V=kappa_V,
-                kappa_h=kappa_h,
-                relative_degrees=None,
-                Au=None,
-                bu=None,
-                Q=np.eye(2)
-            )
-            x_delta = (f + g @ u) * t_delta
-            x_traj[k, :, i] = x_traj[k, :, i-1] + x_delta
+    # # simulate the system:
+    # t_range = np.linspace(0, 25, 1000)
+    # t_delta = t_range[1] - t_range[0]
+    # x_traj = np.zeros((starting_points.shape[0], 2, t_range.shape[0]))
+    # for k in range(starting_points.shape[0]):
+    #     x_start = starting_points[k]
+    #     x_traj[k, :, 0] = x_start
+    #     for i in range(1, t_range.shape[0]):
+    #         u = cbf_clf_qp(
+    #             x_value=x_traj[k, :, i-1],
+    #             x=x,
+    #             f=f,
+    #             g=g,
+    #             V=V,
+    #             h=h,
+    #             kappa_V=kappa_V,
+    #             kappa_h=kappa_h,
+    #             relative_degrees=None,
+    #             Au=None,
+    #             bu=None,
+    #             Q=np.eye(2)
+    #         )
+    #         x_delta = (f + g @ u) * t_delta
+    #         x_traj[k, :, i] = x_traj[k, :, i-1] + x_delta
 
     # plot the trajectory:
     fig = plt.figure()
     ax = fig.add_subplot()
-    ax.set_xlabel(r"$x_1$", fontsize=16)
-    ax.set_ylabel(r"$x_2$", fontsize=16)
-    ax.set_xticks([-15, -10, -5, 0, 5])
-    ax.set_yticks([-10, -5, 0, 5, 10])
-    ax.set_xticklabels([r"-15", r"-10", r"-5", r"0", r"5"], fontsize=16)
-    ax.set_yticklabels([r"-10", r"-5", r"0", r"5", r"10"], fontsize=16)
-    ax.set_xlim(-15, 5)
-    ax.set_ylim(-5, 5)
+    ax.set_xlabel(r"$x_1$", fontsize=18)
+    ax.set_ylabel(r"$x_2$", fontsize=18)
+    ax.set_xticks([-12, -10, -8, -6, -4, -2, 0, 2])
+    ax.set_yticks([-3, -2, -1, 0, 1, 2, 3])
+    ax.set_xticklabels([r"-12", r"-10", r"-8", r"-6", r"-4", r"-2", r"0", r"2"], fontsize=18)
+    ax.set_yticklabels([r"-3", r"-2", r"-1", r"0", r"1", r"2", r"3"], fontsize=18)
+    ax.set_xlim(-12, 2)
+    ax.set_ylim(-3, 3)
+
+    # # plot trajectory:
+    # for k in range(starting_points.shape[0]):
+    #     ax.plot(x_traj[k, 0, :], x_traj[k, 1, :], label=f"Trajectory {k}")
+
     # plot the unsafe region:
     unsafe_polys = np.array([
         sym.Polynomial(x[0] + 5),
@@ -176,32 +189,91 @@ def simulate():
         y_range=(-5, 5),
         sampling_rate=1000
     )
-    # plot the safe region:
-    # for i in range(len(h)):
-    #     plot_2D_function(
-    #         ax=ax,
-    #         f=h[i],
-    #         x=x,
-    #         x_range=(-15, 5),
-    #         y_range=(-5, 5),
-    #         sampling_rate=1000,
-    #         color="blue",
-    #         alpha=0.3
-    #     )
-    plot_union_region(
+
+    # plot the region of V(x)<=1:
+    rho_minus_V_contour,_ = plot_2D_function(
         ax=ax,
-        p=h,
+        f=1-V,
         x=x,
         x_range=(-15, 5),
         y_range=(-5, 5),
-        sampling_rate=1000
+        sampling_rate=1000,
+        with_contour=True,
+        with_region_filled=False,
+        color="red",
+        alpha=0.3
     )
 
-    # plot trajectory:
-    for k in range(starting_points.shape[0]):
-        ax.plot(x_traj[k, 0, :], x_traj[k, 1, :], label=f"Trajectory {k}")
+    compatible_region = plot_compatible_region(
+        ax=ax,
+        h=h,
+        V=V,
+        x=x,
+        x_range=(-15, 5),
+        y_range=(-5, 5),
+        sampling_rate=1000,
+        color="green",
+        alpha=0.3
+    )
 
+    # plot the safe region:
+    cbf_1_contour,_ = plot_2D_function(
+            ax=ax,
+            f=h[0],
+            x=x,
+            x_range=(-15, 5),
+            y_range=(-5, 5),
+            sampling_rate=1000,
+            with_contour=True,
+            with_region_filled=False,
+            color="blue",
+            alpha=0.3
+    )
+    cbf_2_contour,_ = plot_2D_function(
+            ax=ax,
+            f=h[1],
+            x=x,
+            x_range=(-15, 5),
+            y_range=(-5, 5),
+            sampling_rate=1000,
+            with_contour=True,
+            with_region_filled=False,
+            color="purple",
+            alpha=0.3,
+            contour_line_style="--"
+    )
+    cbf_3_contour,_ = plot_2D_function(
+            ax=ax,
+            f=h[2],
+            x=x,
+            x_range=(-15, 5),
+            y_range=(-5, 5),
+            sampling_rate=1000,
+            with_contour=True,
+            with_region_filled=False,
+            color="green",
+            alpha=0.3,
+            contour_line_style="-."
+    )
 
+    # add the legend:
+    ax.legend(
+        [
+            rho_minus_V_contour.legend_elements()[0][0],
+            cbf_1_contour.legend_elements()[0][0],
+            cbf_2_contour.legend_elements()[0][0],
+            cbf_3_contour.legend_elements()[0][0]
+        ],
+        [
+            "$V(x)=1$",
+            "$h_1(x)=0$",
+            "$h_2(x)=0$",
+            "$h_3(x)=0$",
+        ],
+        loc="upper left",
+        prop={"size": 18, 
+              "weight": "bold"}
+    )
     fig.show()
 
 def compare():
@@ -266,17 +338,31 @@ def compare():
     # plot the trajectory:
     fig = plt.figure()
     ax = fig.add_subplot()
-    ax.set_xlabel(r"$x_1$", fontsize=16)
-    ax.set_ylabel(r"$x_2$", fontsize=16)
-    ax.set_xticks([-15, -10, -5, 0, 5])
-    ax.set_yticks([-10, -5, 0, 5, 10])
-    ax.set_xticklabels([r"-15", r"-10", r"-5", r"0", r"5"], fontsize=16)
-    ax.set_yticklabels([r"-10", r"-5", r"0", r"5", r"10"], fontsize=16)
-    ax.set_xlim(-15, 5)
-    ax.set_ylim(-5, 5)
+    ax.set_xlabel(r"$x_1$", fontsize=18)
+    ax.set_ylabel(r"$x_2$", fontsize=18)
+    ax.set_xticks([-12, -10, -8, -6, -4, -2, 0, 2])
+    ax.set_yticks([-3, -2, -1, 0, 1, 2, 3])
+    ax.set_xticklabels([r"-12", r"-10", r"-8", r"-6", r"-4", r"-2", r"0", r"2"], fontsize=18)
+    ax.set_yticklabels([r"-3", r"-2", r"-1", r"0", r"1", r"2", r"3"], fontsize=18)
+    ax.set_xlim(-12, 2)
+    ax.set_ylim(-3, 3)
     # plot trajectory:
-    ax.plot(x_traj1[0, :], x_traj1[1, :], label="Compared_Trajectory", color="blue")
-    ax.plot(x_traj2[0, :], x_traj2[1, :], label="CLF-CBF-QP", color="green")
+    (
+        trajectory_safety_filter,
+    ) = ax.plot(
+        x_traj1[0, :], x_traj1[1, :], 
+        label="Compared_Trajectory",
+        color="red",
+        linewidth=4
+        )
+    (
+        trajecotry_CLF_CBF,
+    ) = ax.plot(
+        x_traj2[0, :], x_traj2[1, :],
+        label="CLF-CBF-QP",
+        color="blue",
+        linewidth=4
+    )
     # plot the unsafe region:
     plot_intersection_region(
         ax=ax,
@@ -296,15 +382,15 @@ def compare():
     #     sampling_rate=1000
     # )
     # compute the h_value of syntheized h(x):
-    union_h_info = compute_compared_2D_function(
-        x=x,
-        h_polys=-unsafe_polys,
-        smooth_k=2,
-        buffer_b=np.log(unsafe_polys.shape[0]),
-        x_range=(-15, 5),
-        y_range=(-5, 5),
-        sampling_rate=1000
-    )
+    # union_h_info = compute_compared_2D_function(
+    #     x=x,
+    #     h_polys=-unsafe_polys,
+    #     smooth_k=2,
+    #     buffer_b=np.log(unsafe_polys.shape[0]),
+    #     x_range=(-15, 5),
+    #     y_range=(-5, 5),
+    #     sampling_rate=1000
+    # )
     # plot the compared h(x):
     # plot_2D_function(
     #     ax=ax,
@@ -317,11 +403,25 @@ def compare():
     #     alpha=0.3
     # )
 
+    # add the legend:
+    ax.legend(
+        [
+            trajectory_safety_filter,
+            trajecotry_CLF_CBF,
+        ],
+        [
+            "Safety Filter",
+            "CLF-CBF-QP"
+        ],
+        loc="upper left",
+        prop={"size": 18}
+    )
+
     fig.show()
 
 
 def main():
-    # simulate()
+    simulate()
     compare()
 
 

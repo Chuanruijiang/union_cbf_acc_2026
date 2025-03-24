@@ -15,9 +15,12 @@ def plot_2D_function(
     x: Optional[np.ndarray],
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
-    sampling_rate: int,
+    sampling_rate: Optional[int],
+    with_contour: bool,
+    with_region_filled: bool,
     color: str,
-    alpha: float
+    alpha: float,
+    contour_line_style='-'
 ):
     """
     Given a function f(x) defined over a 2D domain, plot the superlvel set
@@ -28,6 +31,7 @@ def plot_2D_function(
     """
     if isinstance(f, sym.Polynomial):
         assert x is not None
+        assert sampling_rate is not None
         grid_x, grid_y = np.meshgrid(
             np.linspace(x_range[0], x_range[1], sampling_rate),
             np.linspace(y_range[0], y_range[1], sampling_rate)
@@ -44,18 +48,31 @@ def plot_2D_function(
         grid_f = f[2]
     
     f_contour = None
-    # f_contour = ax.contour(grid_x, grid_y, grid_f, levels=[0], colors=color)
-    f_positive_region = ax.contourf(
-        grid_x,
-        grid_y,
-        grid_f,
-        levels=[0, np.inf],
-        colors=color,
-        alpha=alpha
-        )
+    if with_contour:
+        f_contour = ax.contour(
+            grid_x,
+            grid_y,
+            grid_f,
+            levels=[0],
+            colors=color,
+            linestyles=contour_line_style,
+            linewidths=3
+            )
+    else:
+        f_contour = None    
+    if with_region_filled:
+        f_positive_region = ax.contourf(
+            grid_x,
+            grid_y,
+            grid_f,
+            levels=[0, np.inf],
+            colors=color,
+            alpha=alpha
+            )
+    else:
+        f_positive_region = None
     
     return f_contour, f_positive_region
-
 
 def plot_intersection_region(
     ax: matplotlib.axes.Axes,
@@ -94,14 +111,15 @@ def plot_intersection_region(
     )
     return intersection_region
 
-    
 def plot_union_region(
     ax: matplotlib.axes.Axes,
     p: np.ndarray,
     x: np.ndarray,
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
-    sampling_rate: int
+    sampling_rate: int,
+    color: str,
+    alpha: float
 ):
     """
     In this function, we plot the union of p_i(x) >= 0 for all i.
@@ -121,17 +139,56 @@ def plot_union_region(
         p_grid = p_vals.reshape(grid_x.shape)
         p_grid_values[i, :, :] = p_grid
     
-    intersection = np.max(p_grid_values, axis=0)
-    intersection_region = ax.contourf(
+    grid_union = np.max(p_grid_values, axis=0)
+    union_region = ax.contourf(
         grid_x,
         grid_y,
-        intersection,
+        grid_union,
         levels=[0, np.inf],
-        colors='blue',
-        alpha=0.3
+        colors=color,
+        alpha=alpha
     )
-    return intersection_region
+    return union_region
 
+def plot_compatible_region(
+    ax: matplotlib.axes.Axes,
+    h: np.ndarray,
+    V: sym.Polynomial,
+    x: np.ndarray,
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+    sampling_rate: int,
+    color: str,
+    alpha: float
+):
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(x_range[0], x_range[1], sampling_rate),
+        np.linspace(y_range[0], y_range[1], sampling_rate)
+        )
+    grid_x_val = np.concatenate(
+        [grid_x.reshape(1, -1), grid_y.reshape(1, -1)],
+        axis=0
+        )
+    num_h = h.shape[0]
+    h_grid_values = np.zeros(shape=(num_h, grid_x.shape[1], grid_x.shape[0]))
+    for i in range(num_h):
+        h_vals = h[i].EvaluateIndeterminates(x, grid_x_val)
+        h_grid = h_vals.reshape(grid_x.shape)
+        h_grid_values[i, :, :] = h_grid
+    V_grid_values = V.EvaluateIndeterminates(x, grid_x_val)
+    V_grid = V_grid_values.reshape(grid_x.shape)
+    grid_compatible = np.min(np.array([np.max(h_grid_values, axis=0), V_grid]), axis=0)
+    compatible_region = ax.contourf(
+        grid_x,
+        grid_y,
+        grid_compatible,
+        levels=[0, np.inf],
+        colors=color,
+        alpha=alpha
+    )
+
+    return compatible_region
+    
 
 
 # def main():

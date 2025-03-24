@@ -30,3 +30,17 @@ def system_dynamics_forward()->Tuple[np.ndarray, np.ndarray]:
         [0, 1]
     ])
     return f, g
+
+def control_limits()->Tuple[np.ndarray, np.ndarray]:
+    """
+    This function defines the control limits of the system
+    u₁ ∈ [-1, 1],
+    u₂ ∈ [-1, 1]
+    """
+    u1_min = -20
+    u1_max = 20
+    u2_min = -20
+    u2_max = 20
+    Au = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
+    bu = np.array([u1_max, -u1_min, u2_max, -u2_min])
+    return Au, bu

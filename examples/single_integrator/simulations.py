@@ -410,8 +410,8 @@ def compare():
             trajecotry_CLF_CBF,
         ],
         [
-            "Safety Filter",
-            "CLF-CBF-QP"
+            "Independent CLF/CBF",
+            "CLF/maixmum CBF"
         ],
         loc="upper left",
         prop={"size": 18}

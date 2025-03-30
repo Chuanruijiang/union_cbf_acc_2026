@@ -261,9 +261,16 @@ def clf_union_cbf():
         ),
         x_set=x_set
     )
+    data_single = load_data(
+        pickle_path=get_pkl_file_path(
+            name_file="non_linear_toy_clf_single_cbf_synthesized.pkl"
+        ),
+        x_set=x_set
+    )
 
     clf = data["V"]
     cbfs = data["h"]
+    cbf_single = data_single["h"]
 
     clf_data_for_plot = get_function_value(
         x=x,
@@ -282,6 +289,13 @@ def clf_union_cbf():
     cbf2_data_for_plot = get_function_value(
         x=x,
         f=cbfs[1],
+        gamma_range=(-2.0, 2.0),
+        theta_range=(-pi/2, pi/2),
+        sampling_rate=1000
+    )
+    cbf_single_data_for_plot = get_function_value(
+        x=x,
+        f=cbf_single[0],
         gamma_range=(-2.0, 2.0),
         theta_range=(-pi/2, pi/2),
         sampling_rate=1000
@@ -352,6 +366,20 @@ def clf_union_cbf():
         alpha=0.3,
     )
 
+    cbf_single_contour, _ = plot_2D_function(
+        ax=ax,
+        f=cbf_single_data_for_plot,
+        x=x,
+        x_range=(-2, 2),
+        y_range=(-pi/2, pi/2),
+        sampling_rate=None,
+        with_contour=True,
+        with_region_filled=False,
+        color="darkgreen",
+        alpha=0.3,
+    )
+    cbf_single_contour.set(linestyle=(0, (1, 2, 1, 0)))
+
     # plot compatible region:
     compatible_region = plot_compatible_region(
         ax=ax,
@@ -385,8 +413,9 @@ def clf_union_cbf():
             rho_minus_V_contour.legend_elements()[0][0],
             cbf1_contour.legend_elements()[0][0],
             cbf2_contour.legend_elements()[0][0],
+            cbf_single_contour.legend_elements()[0][0],
         ],
-        ["$V(x)=1$", "$h_1(x)=0$", "$h_2(x)=0$"],
+        ["$V(x)=1$", "$h_1(x)=0$", "$h_2(x)=0$", "$h'(x)=0$"],
         loc="upper right",
         prop={"size": 18}
     )
@@ -395,7 +424,7 @@ def clf_union_cbf():
     fig.show()
 
 def main():
-    clf_single_cbf()
+    #clf_single_cbf()
     clf_union_cbf()
 
 

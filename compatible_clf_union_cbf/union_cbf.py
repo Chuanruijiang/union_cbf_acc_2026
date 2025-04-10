@@ -589,7 +589,6 @@ class CompatibilityLagragianDegrees:
         prog: solvers.MathematicalProgram,
         x: sym.Variables,
         y: sym.Variables,
-        c_sets: Optional[np.ndarray],
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         lagrangian_lambda_y: Optional[np.ndarray] = None,
@@ -598,13 +597,10 @@ class CompatibilityLagragianDegrees:
         lagrangian_h: Optional[np.ndarray] = None,
         lagrangian_deactivated_h: Optional[np.ndarray] = None,
     ) -> CompatibilityLagragians:
-        assert isinstance(self.lambda_y, list)
+        assert isinstance(self.lambda_y, List)
         assert isinstance(self.xi_y, Degree)
         if self.deactivated_h is not None:
-            assert isinstance(self.deactivated_h, list)
-            assert c_sets.shape[0] == len(self.deactivated_h) + 1
-        else:
-            assert c_sets is None
+            assert isinstance(self.deactivated_h, List)
         if self.state_eq_constraints is not None:
             assert isinstance(self.state_eq_constraints, list)
         
@@ -612,7 +608,7 @@ class CompatibilityLagragianDegrees:
             prog,
             x,
             y=None,
-            c=(c_sets[-1] if c_sets is not None else None),
+            c=None,
             sos_type=sos_type,
             is_sos=False,
             degree=self.lambda_y,
@@ -623,7 +619,7 @@ class CompatibilityLagragianDegrees:
             prog,
             x,
             y=None,
-            c=(c_sets[-1] if c_sets is not None else None),
+            c=None,
             sos_type=sos_type,
             is_sos=False,
             degree=self.xi_y,
@@ -634,7 +630,7 @@ class CompatibilityLagragianDegrees:
             prog,
             x,
             y=y,
-            c=(c_sets[-1] if c_sets is not None else None),
+            c=None,
             sos_type=sos_type,
             is_sos=True,
             degree=self.rho_minus_V,
@@ -645,7 +641,7 @@ class CompatibilityLagragianDegrees:
             prog,
             x,
             y=y,
-            c=(c_sets[-1] if c_sets is not None else None),
+            c=None,
             sos_type=sos_type,
             is_sos=True,
             degree=self.h,
@@ -653,24 +649,21 @@ class CompatibilityLagragianDegrees:
         )
 
         deactivated_h_lagrangian = (
-            np.array([
             to_lagrangian_impl(
                 prog=prog,
                 x=x,
                 y=y,
-                c=c_sets[i],
+                c=None,
                 sos_type=sos_type,
-                is_sos=False,
-                degree=self.deactivated_h[i],
+                is_sos=True,
+                degree=self.deactivated_h,
                 lagrangian=(
-                    lagrangian_deactivated_h[i]
+                    lagrangian_deactivated_h
                     if lagrangian_deactivated_h is not None
                     else None)
             )
-            for i in range(len(self.deactivated_h))
-        ])
-        if self.deactivated_h is not None
-        else None
+            if self.deactivated_h is not None
+            else None
         )
 
         state_eq_constraints = (
@@ -680,7 +673,7 @@ class CompatibilityLagragianDegrees:
                 prog,
                 x,
                 y=y,
-                c=(c_sets[-1] if c_sets is not None else None),
+                c=None,
                 sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
                 is_sos=False,
                 degree=self.state_eq_constraints,
@@ -825,7 +818,6 @@ class UnionCbfSynthesisGivenClf:
         lambda_mat: np.ndarray,
         xi: np.ndarray,
         deactivated_h: Optional[sym.Polynomial],
-        c_squared_poly: Optional[np.ndarray],
         lagrangians: CompatibilityLagragians,
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
@@ -849,11 +841,7 @@ class UnionCbfSynthesisGivenClf:
         # if we have deactivated cbfs:
         if deactivated_h is not None:
             assert lagrangians.deactivated_h is not None
-            assert c_squared_poly is not None
-            assert c_squared_poly.shape[0] == deactivated_h.shape[0]
-            poly -= lagrangians.deactivated_h.dot(
-                c_squared_poly * (deactivated_h) + 1
-                )
+            poly += lagrangians.deactivated_h.dot(deactivated_h)
 
         # if we have state_eq_const:
         if self.state_eq_constraints is not None:
@@ -917,37 +905,9 @@ class UnionCbfSynthesisGivenClf:
          point_inclusion.add_to_prog(prog=prog)
          point_inclusion.add_anchor_bound_to_prog(prog=prog)
 
-    def _create_c_variables(
-        self,
-        deactivated_h: Optional[np.ndarray]
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if deactivated_h is None:
-            c = None
-            c_sets = None
-            c_squared_poly = None
-        else:
-            c = (
-            sym.MakeVectorContinuousVariable(deactivated_h.shape[0], "c")
-            )
-            c_squared_poly = np.array([
-                sym.Polynomial(sym.Monomial(c[i], 2))
-                for i in range(c.shape[0])
-            ])
-            c_sets = np.empty(shape=(deactivated_h.shape[0]+1,), dtype=object)
-            c_sets[-1] = sym.Variables(c)
-            for i in range(deactivated_h.shape[0]):
-                c_i = np.delete(c, i, axis=0)
-                if c_i.size == 0:
-                    pass
-                else:
-                    c_sets[i] = sym.Variables(c_i)
-        
-        return c, c_sets, c_squared_poly
-
     def _create_lagrangian_degrees_cbf_synthesis(
         self,
         cbf_index: int,
-        c_var_in_lagrangians: bool = True
     ) -> Tuple[
         CompatibilityLagragianDegrees,
         UnsafeRegionExclusionLagrangianDegrees
@@ -962,38 +922,32 @@ class UnionCbfSynthesisGivenClf:
             -compatibility_lagrangians needs deactivated cbfs.
             -ball_inclusion lagrangians are not needed.
         """
-        assert len(self.compatible_lambda_y_x_degrees) == self.sys_dyn_g.shape[1]
+        assert len(self.compatible_lambda_y_x_degrees) == self.nu
         if cbf_index == 0:
-            c_degree = 0
             compatible_deact_h_lagrangian_degree = None
-        elif cbf_index == 1:
-            c_degree = (2 if c_var_in_lagrangians else 0)
-            compatible_deact_h_lagrangian_degree = [Degree(
-                x=self.compatible_deact_cbf_x_degree[0], y=2, c=0
-            )]
         else:
-            c_degree = (2 if c_var_in_lagrangians else 0)
             compatible_deact_h_lagrangian_degree = [
-                Degree(x=self.compatible_deact_cbf_x_degree[i], y=2, c=c_degree)
+                Degree(x=self.compatible_deact_cbf_x_degree[i], y=2, c=0)
                 for i in range(cbf_index)
             ]
+
         (
             compatibility_lagrangian_degrees
         ) = CompatibilityLagragianDegrees(
             lambda_y=[
-                Degree(x=self.compatible_lambda_y_x_degrees[i], y=0, c=c_degree)
-                for i in range(self.sys_dyn_g.shape[1])
+                Degree(x=self.compatible_lambda_y_x_degrees[i], y=0, c=0)
+                for i in range(self.nu)
             ],
-            xi_y=Degree(x=self.compatible_xi_y_x_degree, y=0, c=c_degree),
+            xi_y=Degree(x=self.compatible_xi_y_x_degree, y=0, c=0),
             rho_minus_V=Degree(
-                x=self.compatible_rho_minus_V_x_degree, y=2, c=c_degree
+                x=self.compatible_rho_minus_V_x_degree, y=2, c=0
                 ),
-            h=Degree(x=self.compatible_h_x_degree, y=2, c=c_degree),
+            h=Degree(x=self.compatible_h_x_degree, y=2, c=0),
             deactivated_h=compatible_deact_h_lagrangian_degree,
             state_eq_constraints=(
                 None if self.state_eq_constraints is None
                 else [
-                    Degree(x=self.state_eq_x_degrees[i], y=2, c=c_degree)
+                    Degree(x=self.state_eq_x_degrees[i], y=2, c=0)
                     for i in range(len(self.state_eq_x_degrees))
                 ]
             )
@@ -1038,7 +992,6 @@ class UnionCbfSynthesisGivenClf:
         compatible_lagragian_degree: CompatibilityLagragianDegrees,
         ball_inclusion_lagrangian_degree: Optional[BallInclusionLagrangianDegree],
         safety_lagrangian_degree: UnsafeRegionExclusionLagrangianDegrees,
-        c_vars: Tuple[np.ndarray, np.ndarray, np.ndarray],
         lagrangian_coeff_tol: Optional[float],
         solver_id: Optional[solvers.SolverId],
         solver_options: Optional[solvers.SolverOptions]
@@ -1049,22 +1002,13 @@ class UnionCbfSynthesisGivenClf:
         ]:
         # initialize the program
         prog = solvers.MathematicalProgram()
-        if deact_cbfs is not None:
-            assert c_vars is not None
-            xyc_set = np.concatenate([self.x, self.y, c_vars[0]], axis=0)
-            prog.AddIndeterminates(sym.Variables(xyc_set))
-        else:
-            assert c_vars[0] is None
-            assert c_vars[1] is None
-            assert c_vars[2] is None
-            prog.AddIndeterminates(self.xy_set)
+        prog.AddIndeterminates(self.xy_set)
 
         # add cbf compatibility constraint
         compatible_lagrangians = compatible_lagragian_degree.to_lagrangians(
             prog=prog,
             x=self.x_set,
             y=self.y_set,
-            c_sets=c_vars[1]
         )
         
         xi, lambda_mat = self._calc_xi_lambda_for_cbf_synthesis(
@@ -1077,9 +1021,9 @@ class UnionCbfSynthesisGivenClf:
             lambda_mat=lambda_mat,
             xi=xi,
             deactivated_h=deact_cbfs,
-            c_squared_poly=c_vars[2],
             lagrangians=compatible_lagrangians
         )
+
         # add ball inclusion constraint if this is the first cbf
         if ball_inclusion_lagrangian_degree is not None:
             assert deact_cbfs is None
@@ -1094,6 +1038,7 @@ class UnionCbfSynthesisGivenClf:
                 cbf=cbf,
                 ball_inclusion_lagrangian=ball_inclusion_lagrangians
             )
+
         # add unsafe region exclusion constraint
         unsafe_exclusion_lagrangians = safety_lagrangian_degree.to_lagrangians(
             prog=prog,
@@ -1153,7 +1098,6 @@ class UnionCbfSynthesisGivenClf:
         weights_to_include: np.ndarray,
         anchor_points: Optional[np.ndarray],
         anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
-        c_vars: Tuple[np.ndarray, np.ndarray, np.ndarray],
         cbf_coeff_tol: Optional[float],
         solver_id: Optional[solvers.SolverId],
         solver_options: Optional[solvers.SolverOptions],
@@ -1161,15 +1105,7 @@ class UnionCbfSynthesisGivenClf:
     ) -> Optional[sym.Polynomial]:
         # initialize the program
         prog = solvers.MathematicalProgram()
-        if deact_cbfs is not None:
-            assert c_vars is not None
-            xyc_set = np.concatenate([self.x, self.y, c_vars[0]], axis=0)
-            prog.AddIndeterminates(sym.Variables(xyc_set))
-        else:
-            assert c_vars[0] is None
-            assert c_vars[1] is None
-            assert c_vars[2] is None
-            prog.AddIndeterminates(self.xy_set)
+        prog.AddIndeterminates(self.xy_set)
 
         cbf_unsolved = prog.NewFreePolynomial(self.x_set, cbf_degree)
 
@@ -1191,7 +1127,6 @@ class UnionCbfSynthesisGivenClf:
             prog=prog,
             x=self.x_set,
             y=self.y_set,
-            c_sets=c_vars[1],
             lagrangian_lambda_y=compatible_lagrangians.lambda_y,
             lagrangian_xi_y=compatible_lagrangians.xi_y,
             lagrangian_h=compatible_lagrangians.h
@@ -1203,7 +1138,6 @@ class UnionCbfSynthesisGivenClf:
             lambda_mat=lambda_mat,
             xi=xi,
             deactivated_h=deact_cbfs,
-            c_squared_poly=c_vars[2],
             lagrangians=compatible_lagrangians_synthesis
         )
 
@@ -1220,7 +1154,7 @@ class UnionCbfSynthesisGivenClf:
             self._add_cbf_ball_inclusion_constraint(
                 prog=prog,
                 cbf=cbf_unsolved,
-                ball_inclusion_lagrangian=ball_inclusion_lagrangians
+                ball_inclusion_lagrangian=ball_inclusion_lagrangian_synthesis
             )
         
         # add unsafe region exclusion constraint
@@ -1300,8 +1234,6 @@ class UnionCbfSynthesisGivenClf:
         ) = self._create_lagrangian_degrees_cbf_synthesis(
             cbf_index=0
         )
-        # (3) create c variables:
-        c_vars = self._create_c_variables(deactivated_h=None)
         
         # start bilinear alternation:
         iter_count = 1
@@ -1322,7 +1254,6 @@ class UnionCbfSynthesisGivenClf:
                 compatible_lagragian_degree=compatible_lagrangian_degree,
                 ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
                 safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
-                c_vars=c_vars,
                 lagrangian_coeff_tol=lagrangian_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options
@@ -1346,7 +1277,6 @@ class UnionCbfSynthesisGivenClf:
                 weights_to_include=weights_to_include,
                 anchor_points=anchor_points,
                 anchor_bounds=anchor_bounds,
-                c_vars=c_vars,
                 cbf_coeff_tol=cbf_coeff_tol,
                 back_off_scale=back_off_scale[iter_count-1],
                 solver_id=solver_id,
@@ -1378,7 +1308,6 @@ class UnionCbfSynthesisGivenClf:
         anchor_points: Optional[np.ndarray],
         anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]],
         max_iter: int,
-        c_var_in_lagrangians: bool,
         *,
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
@@ -1395,12 +1324,7 @@ class UnionCbfSynthesisGivenClf:
         (
             compatible_lagrangian_degree,
             unsafe_exclusion_lagrangian_degree
-        ) = self._create_lagrangian_degrees_cbf_synthesis(
-            cbf_index=cbf_index,
-            c_var_in_lagrangians=c_var_in_lagrangians
-        )
-        # (3) create c variables:
-        c_vars = self._create_c_variables(deactivated_h=deact_cbfs)
+        ) = self._create_lagrangian_degrees_cbf_synthesis(cbf_index=cbf_index)
         
         # start bilinear alternation:
         iter_count = 1
@@ -1421,7 +1345,6 @@ class UnionCbfSynthesisGivenClf:
                 compatible_lagragian_degree=compatible_lagrangian_degree,
                 ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
                 safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
-                c_vars=c_vars,
                 lagrangian_coeff_tol=lagrangian_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options
@@ -1448,7 +1371,6 @@ class UnionCbfSynthesisGivenClf:
                 weights_to_include=weights_to_include,
                 anchor_points=anchor_points,
                 anchor_bounds=anchor_bounds,
-                c_vars=c_vars,
                 cbf_coeff_tol=cbf_coeff_tol,
                 solver_id=solver_id,
                 solver_options=solver_options,

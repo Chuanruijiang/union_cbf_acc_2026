@@ -281,7 +281,7 @@ def main():
         weights_to_include=np.ones(points_to_include.shape[0]),
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=10
+        max_iter=2
     )
     assert cbf_1_result is not None
 
@@ -309,27 +309,24 @@ def main():
 
     # synthesize the second cbf:
     back_off_scales = [
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None),
-        BackoffScale(rel=0.02, abs=None)
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None)
     ]
     cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
-        cbf_init=sym.Polynomial(x[0] - 1.5),
+        cbf_init=sym.Polynomial(x[0] - 1),
         cbf_index=1,
         deact_cbfs=np.array([cbf_1_result]),
         points_to_include=points_to_include,
         weights_to_include=points_inlusion_weights,
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=10,
-        c_var_in_lagrangians=False,
+        max_iter=8,
         back_off_scale=back_off_scales
     )
     assert cbf_2_result is not None

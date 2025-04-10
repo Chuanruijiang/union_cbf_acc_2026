@@ -265,7 +265,7 @@ def main():
     )
 
     # synthesis the second CBF:
-    itermax = 10
+    itermax = 2
     back_off_scales = [BackoffScale(rel=0.02, abs=None)] * itermax
     cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
         cbf_init=sym.Polynomial(x[1] - 5),
@@ -276,7 +276,6 @@ def main():
         anchor_points=None,
         anchor_bounds=None,
         max_iter=itermax,
-        c_var_in_lagrangians=False,
         back_off_scale=back_off_scales
     )
     assert cbf_2_result is not None
@@ -302,20 +301,19 @@ def main():
         anchor_points=None,
         anchor_bounds=None,
         max_iter=itermax,
-        c_var_in_lagrangians=True,
         back_off_scale=back_off_scales
     )
     assert cbf_3_result is not None
 
-    # Save the results:
-    save_clf_cbf(
-        V=V_result,
-        h=np.array([cbf_1_result, cbf_2_result, cbf_3_result]),
-        x_set=x_set,
-        kappa_V=kappaV,
-        kappa_h=kappah,
-        pickle_path=get_pkl_file_path()
-    )
+    # # Save the results:
+    # save_clf_cbf(
+    #     V=V_result,
+    #     h=np.array([cbf_1_result, cbf_2_result, cbf_3_result]),
+    #     x_set=x_set,
+    #     kappa_V=kappaV,
+    #     kappa_h=kappah,
+    #     pickle_path=get_pkl_file_path()
+    # )
 
 
     

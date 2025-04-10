@@ -22,6 +22,8 @@ is empty. We can use the S-procedure to verify this. We can write the above
 -1 - s_1(x) * (r - xᵀx) + s_2(x)h(x) is SOS 
 where s_1(x) and s_2(x) are SOS polynomials.
 """
+
+
 @dataclass
 class BallInclusionLagrangian:
     r_minus_xTx: sym.Polynomial
@@ -30,18 +32,13 @@ class BallInclusionLagrangian:
     def get_results(
         self,
         result: solvers.MathematicalProgramResult,
-        coefficient_tol: Optional[float]
-    )-> Self:
+        coefficient_tol: Optional[float],
+    ) -> Self:
         r_minus_xTx_result = get_polynomial_result(
             result, self.r_minus_xTx, coefficient_tol
         )
-        h_result = get_polynomial_result(
-            result, self.h, coefficient_tol
-        )
-        return BallInclusionLagrangian(
-            r_minus_xTx=r_minus_xTx_result,
-            h=h_result
-            )
+        h_result = get_polynomial_result(result, self.h, coefficient_tol)
+        return BallInclusionLagrangian(r_minus_xTx=r_minus_xTx_result, h=h_result)
 
 
 @dataclass
@@ -68,7 +65,7 @@ class BallInclusionLagrangianDegree:
             sos_type=sos_type,
             is_sos=True,
             degree=self.r_minus_xTx,
-            lagrangian=lagrangian_r_minus_xTx
+            lagrangian=lagrangian_r_minus_xTx,
         )
         h = to_lagrangian_impl(
             prog,
@@ -78,21 +75,13 @@ class BallInclusionLagrangianDegree:
             sos_type=sos_type,
             is_sos=True,
             degree=self.h,
-            lagrangian=lagrangian_h
+            lagrangian=lagrangian_h,
         )
-        return BallInclusionLagrangian(
-            r_minus_xTx=r_minus_xTx,
-            h=h
-        )
+        return BallInclusionLagrangian(r_minus_xTx=r_minus_xTx, h=h)
 
 
 class BallInclusion:
-    def __init__(
-        self,
-        radius: float,
-        h: sym.Polynomial,
-        x: np.ndarray
-    ):
+    def __init__(self, radius: float, h: sym.Polynomial, x: np.ndarray):
         self.radius = radius
         self.h = h
         self.x = x
@@ -101,30 +90,30 @@ class BallInclusion:
         self,
         prog: solvers.MathematicalProgram,
         ball_inclusion_lagrangian: BallInclusionLagrangian,
-        sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> sym.Polynomial:
         x = self.x
         r = self.radius
         h = self.h
         s1 = ball_inclusion_lagrangian.r_minus_xTx
         s2 = ball_inclusion_lagrangian.h
-        poly = -1 - s1 * (r - x.dot(x)) + s2 * h
+        poly = -1 - s1 * (r**2 - x.dot(x)) + s2 * h
         prog.AddSosConstraint(poly, sos_type)
         return poly
-    
+
     def verify_ball_inclusion(
         self,
         ball_x_degree: int,
         h_x_degree: int,
-        sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> bool:
         prog = solvers.MathematicalProgram()
         x_set = sym.Variables(self.x)
         prog.AddIndeterminates(x_set)
 
         ball_inclusion_degree = BallInclusionLagrangianDegree(
-            r_minus_xTx=Degree(x = ball_x_degree, y= 0, c=0),
-            h=Degree(x = h_x_degree, y= 0, c=0)
+            r_minus_xTx=Degree(x=ball_x_degree, y=0, c=0),
+            h=Degree(x=h_x_degree, y=0, c=0),
         )
         ball_inclusion_lagrangian = ball_inclusion_degree.to_lagrangians(
             prog, x_set, sos_type=sos_type
@@ -183,6 +172,8 @@ the polynomial p(x) to be in the range [lower_bound, upper_bound]. We can write 
 following constraints:
 lower_bound <= p(x_j) <= upper_bound
 """
+
+
 @dataclass
 class PointsInclusionConstriants:
     # the indeterminates of the polynomial:
@@ -195,7 +186,7 @@ class PointsInclusionConstriants:
     points_to_include: np.ndarray
     # the lower and upper bound of p(x) at the anchor points. This term should be a
     # tuple with 2 arrays. The first array is the lower bounds and the second is the
-    # upper bounds. Each array is a 1D array with the same size as the number of 
+    # upper bounds. Each array is a 1D array with the same size as the number of
     # anchor points.
     point_inclusion_weights: np.ndarray
     # the set of anchor points. This is an array with 2 axis
@@ -217,12 +208,8 @@ class PointsInclusionConstriants:
     # -(p(x) + bias - margin) <= p_relu
 
     def add_to_prog(
-        self,
-        prog: solvers.MathematicalProgram
-    )-> Tuple[
-        solvers.Binding[solvers.LinearCost],
-        np.ndarray
-    ]: 
+        self, prog: solvers.MathematicalProgram
+    ) -> Tuple[solvers.Binding[solvers.LinearCost], np.ndarray]:
         assert len(self.points_to_include.shape) == 2
         num_included_points = self.points_to_include.shape[0]
         assert self.point_inclusion_weights.shape[0] == num_included_points
@@ -231,15 +218,14 @@ class PointsInclusionConstriants:
         p_relu = prog.NewContinuousVariables(num_included_points, "p_relu")
         prog.AddBoundingBoxConstraint(0, np.inf, p_relu)
         (Ap, theta_p, bp) = self.p.EvaluateWithAffineCoefficients(
-            indeterminates=self.x,
-            indeterminates_values=self.points_to_include.T
+            indeterminates=self.x, indeterminates_values=self.points_to_include.T
         )
 
         prog.AddLinearConstraint(
             A=np.concatenate([Ap, np.eye(num_included_points)], axis=1),
             lb=-bp - self.bias + self.margin,
             ub=np.full_like(bp, np.inf),
-            vars=np.concatenate([theta_p, p_relu])
+            vars=np.concatenate([theta_p, p_relu]),
         )
 
         cost_coeff = self.point_inclusion_weights
@@ -247,11 +233,11 @@ class PointsInclusionConstriants:
         cost = prog.AddLinearCost(cost_coeff, 0.0, cost_vars)
 
         return cost, p_relu
-    
+
     def add_anchor_bound_to_prog(
         self,
         prog: solvers.MathematicalProgram,
-    )-> Optional[solvers.Binding[solvers.LinearConstraint]]:
+    ) -> Optional[solvers.Binding[solvers.LinearConstraint]]:
         if self.anchor_points is not None and self.p_anchor_bounds is not None:
             assert len(self.anchor_points.shape) == 2
             num_anchor_points = self.anchor_points.shape[0]
@@ -260,15 +246,14 @@ class PointsInclusionConstriants:
             assert self.p_anchor_bounds[1].shape[0] == num_anchor_points
 
             (Ap, theta_p, bp) = self.p.EvaluateWithAffineCoefficients(
-                indeterminates=self.x,
-                indeterminates_values=self.anchor_points.T
+                indeterminates=self.x, indeterminates_values=self.anchor_points.T
             )
 
             constraint = prog.AddLinearConstraint(
                 A=Ap,
                 lb=self.p_anchor_bounds[0] - bp,
                 ub=self.p_anchor_bounds[1] - bp,
-                vars=theta_p
+                vars=theta_p,
             )
             return constraint
         else:
@@ -289,6 +274,8 @@ Using P-satz, we have the following SOS constraint:
 -1 - s₁(x) * p₁(x) - ... - sₙ(x) * pₙ(x) - s_{n+1}(x) * h(x) is SOS
 where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
 """
+
+
 @dataclass
 class UnsafeRegionExclusionLagrangians:
     # The array of polynomials presenting lagrangains for p(x)s above
@@ -299,17 +286,14 @@ class UnsafeRegionExclusionLagrangians:
     def get_results(
         self,
         result: solvers.MathematicalProgramResult,
-        coefficient_tol: Optional[float]
-    )-> Self:
+        coefficient_tol: Optional[float],
+    ) -> Self:
         unsafe_polys_results = get_polynomial_result(
             result, self.unsafe_polys, coefficient_tol
         )
-        h_result = get_polynomial_result(
-            result, self.h, coefficient_tol
-        )
+        h_result = get_polynomial_result(result, self.h, coefficient_tol)
         return UnsafeRegionExclusionLagrangians(
-            unsafe_polys=unsafe_polys_results,
-            h=h_result
+            unsafe_polys=unsafe_polys_results, h=h_result
         )
 
 
@@ -325,7 +309,7 @@ class UnsafeRegionExclusionLagrangianDegrees:
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         unsafe_poly_lagrangians: Optional[np.ndarray] = None,
-        h_lagrangian: Optional[sym.Polynomial] = None
+        h_lagrangian: Optional[sym.Polynomial] = None,
     ) -> UnsafeRegionExclusionLagrangians:
         lagrangians_unsafe_polys = to_lagrangian_impl(
             prog,
@@ -335,7 +319,7 @@ class UnsafeRegionExclusionLagrangianDegrees:
             sos_type=sos_type,
             is_sos=True,
             degree=self.unsafe_polys,
-            lagrangian=unsafe_poly_lagrangians
+            lagrangian=unsafe_poly_lagrangians,
         )
         lagrangians_h = to_lagrangian_impl(
             prog,
@@ -345,21 +329,15 @@ class UnsafeRegionExclusionLagrangianDegrees:
             sos_type=sos_type,
             is_sos=True,
             degree=self.h,
-            lagrangian=h_lagrangian
+            lagrangian=h_lagrangian,
         )
         return UnsafeRegionExclusionLagrangians(
-            unsafe_polys=lagrangians_unsafe_polys,
-            h=lagrangians_h
+            unsafe_polys=lagrangians_unsafe_polys, h=lagrangians_h
         )
 
 
 class UnsafeExclusion:
-    def __init__(
-        self,
-        unsafe_polys: np.ndarray,
-        h: sym.Polynomial,
-        x: np.ndarray
-    ):
+    def __init__(self, unsafe_polys: np.ndarray, h: sym.Polynomial, x: np.ndarray):
         self.unsafe_polys = unsafe_polys
         self.h = h
         self.x = x
@@ -368,8 +346,8 @@ class UnsafeExclusion:
         self,
         prog: solvers.MathematicalProgram,
         unsafe_exclusion_lagrangians: UnsafeRegionExclusionLagrangians,
-        sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
-    )-> sym.Polynomial:
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+    ) -> sym.Polynomial:
         polys = self.unsafe_polys
         h = self.h
         poly = -1
@@ -383,7 +361,7 @@ class UnsafeExclusion:
         self,
         unsafe_poly_x_degrees: List[int],
         h_x_degree: int,
-        sos_type = solvers.MathematicalProgram.NonnegativePolynomial.kSos
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> bool:
         assert len(unsafe_poly_x_degrees) == self.unsafe_polys.shape[0]
 
@@ -393,10 +371,10 @@ class UnsafeExclusion:
 
         unsafe_exclusion_degree = UnsafeRegionExclusionLagrangianDegrees(
             unsafe_polys=[
-                Degree(x = unsafe_poly_x_degrees[i], y= 0, c=0)
+                Degree(x=unsafe_poly_x_degrees[i], y=0, c=0)
                 for i in range(self.unsafe_polys.shape[0])
             ],
-            h=Degree(x = h_x_degree, y= 0, c=0)
+            h=Degree(x=h_x_degree, y=0, c=0),
         )
         unsafe_exclusion_lagrangians = unsafe_exclusion_degree.to_lagrangians(
             prog, x_set, sos_type=sos_type

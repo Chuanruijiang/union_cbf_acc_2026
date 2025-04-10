@@ -336,12 +336,12 @@ def main():
 
     h_results = np.array([cbf_1_result, cbf_2_result])
 
-    save_synthesis_results(
-        V_res=V_result,
-        h_res=h_results,
-        x_set=x_set,
-        pickle_path=get_pkl_file_path("non_linear_toy_clf_union_cbf_synthesized.pkl")
-    )
+    # save_synthesis_results(
+    #     V_res=V_result,
+    #     h_res=h_results,
+    #     x_set=x_set,
+    #     pickle_path=get_pkl_file_path("non_linear_toy_clf_union_cbf_synthesized.pkl")
+    # )
 
 
 if __name__ == "__main__":

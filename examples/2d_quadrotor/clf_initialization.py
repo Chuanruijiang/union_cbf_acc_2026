@@ -1,5 +1,5 @@
 """
-Since now we are working on a nonlinear dynmaics,
+Since now we are working on a quadrotor nonlinear system,
 then the CLF should not be simply initialized as
 circular function. In stead, we will intialize it
 using LQR. If the system also has a state-equation
@@ -25,11 +25,12 @@ from compatible_clf_union_cbf.utils import system_linearization, serialize_polyn
 from compatible_clf_union_cbf.inclusion import BallInclusion
 from dynamics import system_dynamics
 
+
 sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))
 
 
 def get_pkl_file_path():
-    filename = "non_linear_toy_clf_init.pkl"
+    filename = "2d_quadrotor_clf_init.pkl"
     path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
@@ -67,11 +68,11 @@ def save_clf_init(
 
 
 def main():
-    x = sym.MakeVectorContinuousVariable(3, "x")
+    x = sym.MakeVectorContinuousVariable(7, "x")
     f, g = system_dynamics(x)
 
-    x_eq = np.array([0, 0, 0])
-    u_eq = np.array([0, 0])
+    x_eq = np.zeros(7)
+    u_eq = np.array([0.5*0.486*9.81, 0.5*0.486*9.81])
 
     eq_point = (x_eq, u_eq)
 
@@ -83,8 +84,8 @@ def main():
     # control cost, we put more weight on the velocity than the
     # angular velocity.
     R = np.eye(2)
-    Q = np.eye(3)
-    F = np.array([[0, 0, 2]])  # linearization of the state eq-const
+    Q = np.eye(7)
+    F = np.array([[0, 0, 0, 0, 0, 0, 2]])  # linearization of the state eq-const
 
     _, S_lqr = controllers.LinearQuadraticRegulator(A, B, Q, R, F=F)
 

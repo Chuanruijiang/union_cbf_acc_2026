@@ -2,40 +2,34 @@ import os
 import sys
 import os.path
 import pickle
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
 
-from typing import Optional
 import numpy as np
 import pydrake.symbolic as sym
 
-from compatible_clf_union_cbf.utils import(
+from compatible_clf_union_cbf.utils import (
     compute_minimum_on_boundary,
     serialize_polynomial,
     deserialize_polynomial,
-    BackoffScale
+    BackoffScale,
 )
-from compatible_clf_union_cbf.clf import(
-    ClfSynthesis
-)
-from compatible_clf_union_cbf.union_cbf import(
-    UnionCbfSynthesisGivenClf
-)
-from dynamics import(
+from compatible_clf_union_cbf.clf import ClfSynthesis
+from compatible_clf_union_cbf.union_cbf import UnionCbfSynthesisGivenClf
+from dynamics import (
     system_dynamics,
     state_equation_constraint,
-    control_limits,
-    original_to_extended_state_space
+    original_to_extended_state_space,
 )
 
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))
 
-def get_pkl_file_path(
-    name_file: str
-):  
+
+def get_pkl_file_path(name_file: str):
     filename = name_file
     path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
     return path
+
 
 def load_clf(pickle_path: str, x_set: sym.Variables) -> dict:
     ret = {}
@@ -44,6 +38,7 @@ def load_clf(pickle_path: str, x_set: sym.Variables) -> dict:
 
     ret["V"] = deserialize_polynomial(data["V"], x_set)
     return ret
+
 
 def save_synthesized_clf(
     V: sym.Polynomial,
@@ -56,7 +51,7 @@ def save_synthesized_clf(
     _, file_extension = os.path.splitext(pickle_path)
     assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
     data = {}
-    
+
     data["V"] = serialize_polynomial(V, x_set)
 
     if os.path.exists(pickle_path):
@@ -74,6 +69,7 @@ def save_synthesized_clf(
         with open(pickle_path, "wb") as handle:
             pickle.dump(data, handle)
 
+
 def load_cbf(pickle_path: str, x_set: sym.Variables) -> dict:
     ret = {}
     with open(pickle_path, "rb") as handle:
@@ -81,6 +77,7 @@ def load_cbf(pickle_path: str, x_set: sym.Variables) -> dict:
 
     ret["h"] = deserialize_polynomial(data["h"], x_set)
     return ret
+
 
 def save_synthesized_cbf(
     h: sym.Polynomial,
@@ -93,7 +90,7 @@ def save_synthesized_cbf(
     _, file_extension = os.path.splitext(pickle_path)
     assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
     data = {}
-    
+
     data["h"] = serialize_polynomial(h, x_set)
 
     if os.path.exists(pickle_path):
@@ -111,6 +108,7 @@ def save_synthesized_cbf(
         with open(pickle_path, "wb") as handle:
             pickle.dump(data, handle)
 
+
 def save_synthesis_results(
     V_res: sym.Polynomial,
     h_res: np.ndarray,
@@ -120,7 +118,7 @@ def save_synthesis_results(
     _, file_extension = os.path.splitext(pickle_path)
     assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
     data = {}
-    
+
     data["V"] = serialize_polynomial(V_res, x_set)
     data["h"] = [serialize_polynomial(h_i, x_set) for h_i in h_res]
 
@@ -139,16 +137,15 @@ def save_synthesis_results(
         with open(pickle_path, "wb") as handle:
             pickle.dump(data, handle)
 
+
 def main():
     pi = np.pi
     x = sym.MakeVectorContinuousVariable(3, "x")
     x_set = sym.Variables(x)
-    
+
     data = load_clf(
-        pickle_path=get_pkl_file_path(
-            name_file="non_linear_toy_clf_init.pkl"
-        ),
-        x_set=x_set
+        pickle_path=get_pkl_file_path(name_file="non_linear_toy_clf_init.pkl"),
+        x_set=x_set,
     )
     V_init = data["V"]
 
@@ -166,47 +163,43 @@ def main():
     kappah = [1.0, 1.0]
 
     # unsafe Region:
-    unsafe_polys = np.array([
-        sym.Polynomial(-x[0] + 0.3),
-        sym.Polynomial(-x[1] + np.sin(-pi/4))
-    ])
+    unsafe_polys = np.array(
+        [sym.Polynomial(-x[0] + 0.3), sym.Polynomial(-x[1] + np.sin(-pi / 4))]
+    )
 
     clf_synthesis = ClfSynthesis(
-        x=x,
-        sys_dyn_f=f,
-        sys_dyn_g=g,
-        Au=Au,
-        bu=bu,
-        state_eq_constraint=state_eq_const
+        x=x, sys_dyn_f=f, sys_dyn_g=g, Au=Au, bu=bu, state_eq_constraint=state_eq_const
     )
 
     # define the points to be included in the γ, θ domain
-    points_to_include_2d = np.array([
-        [-0.8, pi/4],
-        [-1.5, pi/4],
-        [-0.8, -pi/4.5],
-        [-1.1, -pi/4.5],
-        [0.5, -pi/3.5],
-        [0.5, -pi/3],
-        [1.5, -pi/3],
-        [0.9, -pi/3],
-        [0.9, pi/6],
-        [1.8, -pi/8],
-        [2, pi/2.5],
-        [-2, pi/8],
-        [0.9, pi/4],
-        [1.8, pi/6]
-    ])
+    points_to_include_2d = np.array(
+        [
+            [-0.8, pi / 4],
+            [-1.5, pi / 4],
+            [-0.8, -pi / 4.5],
+            [-1.1, -pi / 4.5],
+            [0.5, -pi / 3.5],
+            [0.5, -pi / 3],
+            [1.5, -pi / 3],
+            [0.9, -pi / 3],
+            [0.9, pi / 6],
+            [1.8, -pi / 8],
+            [2, pi / 2.5],
+            [-2, pi / 8],
+            [0.9, pi / 4],
+            [1.8, pi / 6],
+        ]
+    )
     points_to_include = original_to_extended_state_space(
         input_points=points_to_include_2d
-        )
+    )
     points_inlusion_weights = np.ones(points_to_include.shape[0])
-    
+
     # synthesize the clf
     V_result = clf_synthesis.bilinear_alternation(
         clf_init=V_init,
         rho=rho,
-        kappaV=kappaV+kappa_diff,
+        kappaV=kappaV + kappa_diff,
         ball_radius=epsilon_0,
         ball_inclusion_ball_x_degree=2,
         ball_inclusion_h_x_degree=2,
@@ -238,12 +231,10 @@ def main():
 
     # compute epsilon for CBF synthesis:
     V_min = compute_minimum_on_boundary(
-        x=x,
-        p=V_result,
-        q=sym.Polynomial(epsilon_0**2 - x.dot(x))
+        x=x, p=V_result, q=sym.Polynomial(epsilon_0**2 - x.dot(x))
     )
     print(V_min)
-    epsilon = kappa_diff*V_min
+    epsilon = kappa_diff * V_min
     print(f"We use this epsilon for the following CBF synthesis: {epsilon}")
 
     cbf_synthesis_given_clf = UnionCbfSynthesisGivenClf(
@@ -271,17 +262,17 @@ def main():
         compatible_h_x_degree=2,
         state_eq_x_degrees=[2],
         safety_h_x_degree=2,
-        safety_unsafe_polys_x_degree=[2, 2]
+        safety_unsafe_polys_x_degree=[2, 2],
     )
 
     # synthesis the first cbf:
     cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
-        cbf_init=sym.Polynomial(x[1] - np.sin(-pi/6)),
+        cbf_init=sym.Polynomial(x[1] - np.sin(-pi / 6)),
         points_to_include=points_to_include,
         weights_to_include=np.ones(points_to_include.shape[0]),
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=2
+        max_iter=2,
     )
     assert cbf_1_result is not None
 
@@ -303,9 +294,8 @@ def main():
     ) = cbf_synthesis_given_clf.remove_included_points(
         included_points=points_to_include,
         points_inclusion_weights=points_inlusion_weights,
-        solved_cbf=cbf_1_result
+        solved_cbf=cbf_1_result,
     )
-    
 
     # synthesize the second cbf:
     back_off_scales = [
@@ -316,7 +306,7 @@ def main():
         BackoffScale(rel=0.00, abs=None),
         BackoffScale(rel=0.00, abs=None),
         BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None)
+        BackoffScale(rel=0.00, abs=None),
     ]
     cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
         cbf_init=sym.Polynomial(x[0] - 1),
@@ -327,11 +317,11 @@ def main():
         anchor_points=None,
         anchor_bounds=None,
         max_iter=8,
-        back_off_scale=back_off_scales
+        back_off_scale=back_off_scales,
     )
     assert cbf_2_result is not None
 
-    h_results = np.array([cbf_1_result, cbf_2_result])
+    # h_results = np.array([cbf_1_result, cbf_2_result])
 
     # save_synthesis_results(
     #     V_res=V_result,
@@ -343,4 +333,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

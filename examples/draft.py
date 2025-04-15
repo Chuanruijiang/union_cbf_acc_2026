@@ -1,42 +1,16 @@
-import os
-import sys
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
-
 import numpy as np
-import pydrake.symbolic as sym
-from compatible_clf_union_cbf.non_empty_subset import(
-    Subset
-)
+
 
 def main():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    rho_minus_V = sym.Polynomial(49 - x.dot(x))
-    ball_rad = 0.1
-    r = np.array([0.1, 0.3, 0.49, 0.5, 0.51, 0.6])
-    expected_results = [True, True, True, True, False, False]
-    for i in range(r.shape[0]):
-        h = np.array(
-            [
-                sym.Polynomial(-((x[0] - 0.5) ** 2 + x[1] ** 2 - r[i] ** 2)),
-                sym.Polynomial(-((x[0] + 0.5) ** 2 + x[1] ** 2 - r[i] ** 2)),
-            ]
-        )
-        subset = Subset(
-            x=x,
-            cbfs=h,
-            rho_minus_clf=rho_minus_V,
-            ball_radius=ball_rad,
-            activation_index=np.array([1, 1])
-        )
-        result = subset.is_empty(
-            lagrangian_x_degree=2,
-            lagrangian_c_degree=2
-        )
-        assert result == expected_results[i]
-    
+    pi = np.pi
+    x = pi/9
+    print("compare sin(x) with Taylor expansion")
+    print(x - x**3/(3*2))
+    print(np.sin(x))
+    print("compare cos(x) with Taylor expansion")
+    print(1 - x**2/2)
+    print(np.cos(x))
 
-
-    
 
 if __name__ == "__main__":
     main()

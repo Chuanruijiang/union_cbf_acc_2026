@@ -12,9 +12,7 @@ from compatible_clf_union_cbf.utils import (
     BackoffScale,
 )
 from compatible_clf_union_cbf.clf import ClfSynthesis
-from dynamics import (
-    Quadrotor2dPlant
-)
+from dynamics import Quadrotor2dPlant
 
 
 sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))
@@ -68,7 +66,6 @@ def save_synthesized_clf(
 
 
 def main():
-    pi = np.pi
     x = sym.MakeVectorContinuousVariable(6, "x")
     x_set = sym.Variables(x)
 
@@ -87,9 +84,9 @@ def main():
     # set parameters:
     epsilon_0 = 0.1
     rho = 1
-    kappaV = 0.05
-    kappa_diff = 0.01
-    #kappah = [1.0, 1.0]
+    kappaV = 0.005
+    kappa_diff = 0.001
+    # kappah = [1.0, 1.0]
 
     # # unsafe Region:
     # unsafe_polys = np.array(
@@ -107,6 +104,19 @@ def main():
             [-1, 2, 0, 0, 0, 0],
             [-1, 0, 0, 0, 0, 0],
             [1, -2, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0],
+            [-1, -1, 0, 0, 0, 0],
+            [-1, 1, 0, 0, 0, 0],
+            [1, -1, 0, 0, 0, 0],
+            [0, -1, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0],
+            [1.8, 1.75, 0, 0, 0, 0],
+            [1.8, 1.7, 0, 0, 0, 0],
+            [1.7, 1.6, 0, 0, 0, 0],
+            [-0.5, 0.5, 0, 0, 0, 0],
+            [-0.5, -0.5, 0, 0, 0, 0],
+            [1.5, 2, 0, 0, 0, 0],
+            [0.5, 1.5, 0, 0, 0, 0],
         ]
     )
     points_inlusion_weights = np.ones(
@@ -124,17 +134,7 @@ def main():
         BackoffScale(rel=0.01, abs=None),
         BackoffScale(rel=0.01, abs=None),
         BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
-        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None)
     ]
     V_result = clf_synthesis.bilinear_alternation(
         clf_init=V_init,
@@ -152,7 +152,7 @@ def main():
         state_eq_constraints_x_degree=[2],
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=20,
+        max_iter=10,
         backoff_scale=back_off_scale,
     )
     assert V_result is not None

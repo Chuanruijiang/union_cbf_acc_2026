@@ -1024,20 +1024,20 @@ class UnionCbfSynthesisGivenClf:
             lagrangians=compatible_lagrangians
         )
 
-        # add ball inclusion constraint if this is the first cbf
-        if ball_inclusion_lagrangian_degree is not None:
-            assert deact_cbfs is None
-            (
-                ball_inclusion_lagrangians
-            ) = ball_inclusion_lagrangian_degree.to_lagrangians(
-                prog=prog,
-                x=self.x_set
-            )
-            self._add_cbf_ball_inclusion_constraint(
-                prog=prog,
-                cbf=cbf,
-                ball_inclusion_lagrangian=ball_inclusion_lagrangians
-            )
+        # # add ball inclusion constraint if this is the first cbf
+        # if ball_inclusion_lagrangian_degree is not None:
+        #     assert deact_cbfs is None
+        #     (
+        #         ball_inclusion_lagrangians
+        #     ) = ball_inclusion_lagrangian_degree.to_lagrangians(
+        #         prog=prog,
+        #         x=self.x_set
+        #     )
+        #     self._add_cbf_ball_inclusion_constraint(
+        #         prog=prog,
+        #         cbf=cbf,
+        #         ball_inclusion_lagrangian=ball_inclusion_lagrangians
+        #     )
 
         # add unsafe region exclusion constraint
         unsafe_exclusion_lagrangians = safety_lagrangian_degree.to_lagrangians(

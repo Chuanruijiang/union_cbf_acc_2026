@@ -337,10 +337,10 @@ class ClfSynthesis:
         prog.AddIndeterminates(self.xy_set)
 
         (lambda_matrix, xi_vec) = self._calc_xi_lambda(kappaV=kappaV, clf=clf)
-        # ball_inclusion_lagrangian = ball_inclusion_lagrangian_degree.to_lagrangians(
-        #     prog=prog,
-        #     x=self.x_set
-        #     )
+        ball_inclusion_lagrangian = ball_inclusion_lagrangian_degree.to_lagrangians(
+            prog=prog,
+            x=self.x_set
+            )
         clf_lagrangian = clf_lagrangian_degree.to_lagrangians(
             prog=prog, x=self.x_set, y=self.y_set
         )
@@ -353,30 +353,29 @@ class ClfSynthesis:
             clf=clf,
             rho=rho,
         )
-        # # add ball inclusion constraints:
-        # self._add_ball_inclusion_constraint(
-        #     prog=prog,
-        #     ball_radius=ball_radius,
-        #     clf=clf,
-        #     rho=rho,
-        #     ball_inclusion_lagrangian=ball_inclusion_lagrangian
-        # )
+        # add ball inclusion constraints:
+        self._add_ball_inclusion_constraint(
+            prog=prog,
+            ball_radius=ball_radius,
+            clf=clf,
+            rho=rho,
+            ball_inclusion_lagrangian=ball_inclusion_lagrangian
+        )
 
         result = solve_with_id(
             prog=prog, solver_id=solver_id, solver_options=solver_options
         )
 
         if result.is_success():
-            # ball_inclusion_lagrangian_result = ball_inclusion_lagrangian.get_results(
-            #     result=result,
-            #     coefficient_tol=lagrangian_coeff_tol
-            # )
+            ball_inclusion_lagrangian_result = ball_inclusion_lagrangian.get_results(
+                result=result,
+                coefficient_tol=lagrangian_coeff_tol
+            )
             clf_lagrangian_result = clf_lagrangian.get_results(
                 result=result, coefficient_tol=lagrangian_coeff_tol
             )
             return (
-                # ball_inclusion_lagrangian_result,
-                None,
+                ball_inclusion_lagrangian_result,
                 clf_lagrangian_result,
             )
         else:
@@ -406,16 +405,16 @@ class ClfSynthesis:
         prog = solvers.MathematicalProgram()
         prog.AddIndeterminates(self.xy_set)
 
-        # if ball_inclusion_degrees is not None:
-        #     (
-        #         new_ball_inclusion_lagrangian
-        #     ) = ball_inclusion_degrees.to_lagrangians(
-        #         prog=prog,
-        #         x=self.x_set,
-        #         lagrangian_h=ball_inclusion_lagrangian.h,
-        #     )
-        # else:
-        #     new_ball_inclusion_lagrangian = ball_inclusion_lagrangian
+        if ball_inclusion_degrees is not None:
+            (
+                new_ball_inclusion_lagrangian
+            ) = ball_inclusion_degrees.to_lagrangians(
+                prog=prog,
+                x=self.x_set,
+                lagrangian_h=ball_inclusion_lagrangian.h,
+            )
+        else:
+            new_ball_inclusion_lagrangian = ball_inclusion_lagrangian
         if clf_lagrangian_degree is not None:
             (new_clf_lagrangian) = clf_lagrangian_degree.to_lagrangians(
                 prog=prog,
@@ -441,13 +440,13 @@ class ClfSynthesis:
             clf=V_unsolved,
             rho=rho,
         )
-        # self._add_ball_inclusion_constraint(
-        #     prog=prog,
-        #     ball_radius=ball_radius,
-        #     clf=V_unsolved,
-        #     rho=rho,
-        #     ball_inclusion_lagrangian=new_ball_inclusion_lagrangian
-        # )
+        self._add_ball_inclusion_constraint(
+            prog=prog,
+            ball_radius=ball_radius,
+            clf=V_unsolved,
+            rho=rho,
+            ball_inclusion_lagrangian=new_ball_inclusion_lagrangian
+        )
         self._add_points_inclusion_constraint(
             prog=prog,
             clf=V_unsolved,
@@ -529,7 +528,7 @@ class ClfSynthesis:
                 )
             )
 
-            # assert ball_inclusion_lagragian_result is not None
+            assert ball_inclusion_lagragian_result is not None
             assert clf_lagrangian_result is not None
 
             clf_updated = self.seach_clf_given_lagrangians(

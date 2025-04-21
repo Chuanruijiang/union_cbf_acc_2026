@@ -3,14 +3,14 @@ This file defines the dynamics of the 2D quadrotor reach-avoid example.
 
 Here are the variables for the 2D quadrotor:
 x0 = Px meaning the x position of the quadrotor
-x1 = Py meaning the y position of the quadrotor
+x1 = Pz meaning the y position of the quadrotor
 x2 = θ  meaning the rolling angle of the quadrotor
 x3 = Vx meaning the x velocity of the quadrotor
-x4 = Vy meaning the y velocity of the quadrotor
+x4 = Vz meaning the y velocity of the quadrotor
 x5 = ω meaning the rolling rate of the quadrotor
 The dynamics are given by:
 Ṗx  = Vx,
-Ṗy  = Vy,
+Ṗy  = Vz,
 ̇θ   = ω,
 V̇x  = -1/m * sinθ * (u_0 + u_1)
 V̇y  = 1/m * cosθ * (u_0 + u_1) - g
@@ -18,7 +18,7 @@ V̇y  = 1/m * cosθ * (u_0 + u_1) - g
 
 since the dynamics has trigonometric functions, we need to polynomialize it.
 define the following change of variables:
-x0 = Px, x1 = Py, x2 = sin(θ), x3 = cos(θ)-1, x4 = Vx, x5 = Vy, x6 = ω
+x0 = Px, x1 = Pz, x2 = sin(θ), x3 = cos(θ)-1, x4 = Vx, x5 = Vz, x6 = ω
 The new dyanmics would be:
 ̇x0 = x4,
 ̇x1 = x5,

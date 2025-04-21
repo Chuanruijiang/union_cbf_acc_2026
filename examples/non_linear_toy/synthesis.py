@@ -303,10 +303,7 @@ def main():
         BackoffScale(rel=0.00, abs=None),
         BackoffScale(rel=0.00, abs=None),
         BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
+        BackoffScale(rel=0.00, abs=None)
     ]
     cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
         cbf_init=sym.Polynomial(x[0] - 1),
@@ -316,7 +313,7 @@ def main():
         weights_to_include=points_inlusion_weights,
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=8,
+        max_iter=5,
         back_off_scale=back_off_scales,
     )
     assert cbf_2_result is not None

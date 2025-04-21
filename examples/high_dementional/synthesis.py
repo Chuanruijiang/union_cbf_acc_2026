@@ -19,48 +19,17 @@ dim=8: p1 = [1, 1, 1, 1, 0, 0, 0, 0], p2 = [0, 0, 0, 0, 1, 1, 1, 1]
 We also record the computation time for each dimension case.
 """
 
-import os.path
-import sys
-import pickle
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
-
-from typing import Optional
 import numpy as np
 import pydrake.symbolic as sym
-
-from compatible_clf_union_cbf.utils import(
-    compute_minimum_on_boundary,
-    serialize_polynomial,
-    deserialize_polynomial,
-    BackoffScale
-)
-from compatible_clf_union_cbf.clf import(
-    ClfSynthesis
-)
-from compatible_clf_union_cbf.union_cbf import(
+from compatible_clf_union_cbf.utils import BackoffScale
+from compatible_clf_union_cbf.clf import ClfSynthesis
+from compatible_clf_union_cbf.union_cbf import (
     UnionCbfSynthesisGivenClf
 )
 from dynamics import HighDementionalDyanmics
 
 
-def get_pkl_file_path(name_file: str):
-    filename = name_file
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
-    )
-    return path
-
-
-def load_clf(pickle_path: str, x_set: sym.Variables, idx: int) -> dict:
-    ret = {}
-    with open(pickle_path, "rb") as handle:
-        data = pickle.load(handle)
-
-    ret["V"+str(idx)] = deserialize_polynomial(data["V"+str(idx)], x_set)
-    return ret
-
-
-def get_unsafe_region(x: np.ndarray, dim: int)->np.ndarray:
+def get_unsafe_region(x: np.ndarray, dim: int) -> np.ndarray:
     assert x.shape[0] == dim
     if dim % 2 == 0:
         p1 = np.array([1]*(int(dim/2)) + [0]*(int(dim/2)))
@@ -68,7 +37,7 @@ def get_unsafe_region(x: np.ndarray, dim: int)->np.ndarray:
     else:
         p1 = np.array([1]*(int((dim+1)/2)) + [0]*(int((dim-1)/2)))
         p2 = np.array([0]*(int((dim+1)/2)) + [1]*(int((dim-1)/2)))
-    
+
     return np.array([
         sym.Polynomial(-1 - p1.dot(x)),
         sym.Polynomial(1 - p2.dot(x))
@@ -132,19 +101,11 @@ def points_to_include(dim: int) -> np.ndarray:
 
 def main(dim: int):
     assert dim >= 2 and dim <= 8, "dim should be in [2,8]"
-    
+
     x = sym.MakeVectorContinuousVariable(dim, "x")
-    x_set = sym.Variables(x)
     high_dementional_system = HighDementionalDyanmics(dim)
     (f, g) = high_dementional_system.affine_dynamics(x)
     (Au, bu) = (None, None)
-    
-    V_index = dim - 2
-    data = load_clf(
-        get_pkl_file_path("high_dementional_clf_init.pkl"),
-        x_set,
-        idx=V_index
-    )
     V_init = sym.Polynomial(x.dot(x))
 
     # necessary parameters
@@ -198,7 +159,7 @@ def main(dim: int):
         anchor_bounds=None,
         max_iter=10,
         lagrangian_coeff_tol=1e-3,
-        backoff_scale=back_off_scale,
+        backoff_scale=None,
     )
     assert V_result is not None
 
@@ -207,4 +168,4 @@ def main(dim: int):
 
 
 if __name__ == "__main__":
-    main(dim=8)
+    main(dim=3)

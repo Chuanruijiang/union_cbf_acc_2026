@@ -14,6 +14,7 @@ from compatible_clf_union_cbf.utils import (
 )
 # from compatible_clf_union_cbf.clf import ClfSynthesis
 from compatible_clf_union_cbf.union_cbf import UnionCbfSynthesisGivenClf
+from compatible_clf_union_cbf.clf import ClfSynthesis
 from dynamics import Quadrotor2dPlant
 
 
@@ -121,42 +122,42 @@ def main():
         points_to_include.shape[0],
     )
 
-    # # synthesize the clf
-    # clf_synthesis = ClfSynthesis(
-    #     x=x, sys_dyn_f=f, sys_dyn_g=g, Au=Au, bu=bu, state_eq_constraint=None
-    # )
-    # back_off_scale = [
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None),
-    #     BackoffScale(rel=0.01, abs=None)
-    # ]
-    # V_result = clf_synthesis.bilinear_alternation(
-    #     clf_init=V_init,
-    #     rho=rho,
-    #     kappaV=kappaV + kappa_diff,
-    #     ball_radius=epsilon_0,
-    #     ball_inclusion_ball_x_degree=2,
-    #     ball_inclusion_h_x_degree=2,
-    #     clf_lagrangain_lambda_y_x_degree=[2, 2],
-    #     clf_lagrangain_xi_y_x_degree=2,
-    #     clf_lagrangain_rho_minus_V_x_degree=2,
-    #     V_x_degree=2,
-    #     included_points=points_to_include,
-    #     points_inclusion_weights=points_inclusion_weights,
-    #     state_eq_constraints_x_degree=[2],
-    #     anchor_points=None,
-    #     anchor_bounds=None,
-    #     max_iter=10,
-    #     backoff_scale=back_off_scale,
-    # )
-    # assert V_result is not None
+    # synthesize the clf
+    clf_synthesis = ClfSynthesis(
+        x=x, sys_dyn_f=f, sys_dyn_g=g, Au=Au, bu=bu, state_eq_constraint=None
+    )
+    back_off_scale = [
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None),
+        BackoffScale(rel=0.01, abs=None)
+    ]
+    V_result = clf_synthesis.bilinear_alternation(
+        clf_init=V_init,
+        rho=rho,
+        kappaV=kappaV + kappa_diff,
+        ball_radius=epsilon_0,
+        ball_inclusion_ball_x_degree=2,
+        ball_inclusion_h_x_degree=2,
+        clf_lagrangain_lambda_y_x_degree=[2, 2],
+        clf_lagrangain_xi_y_x_degree=2,
+        clf_lagrangain_rho_minus_V_x_degree=2,
+        V_x_degree=2,
+        included_points=points_to_include,
+        points_inclusion_weights=points_inclusion_weights,
+        state_eq_constraints_x_degree=[2],
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=10,
+        backoff_scale=back_off_scale,
+    )
+    assert V_result is not None
     
     # # save the synthesized CLF
     # save_synthesized_clf(
@@ -167,60 +168,60 @@ def main():
     #         ),
     # )
 
-    # load synthesized CLF:
-    data = load_clf(
-        pickle_path=get_pkl_file_path(name_file="2d_quadrotor_clf_synthesized_taylor.pkl"),
-        x_set=x_set,
-    )
-    V_result = data["V"]
+    # # load synthesized CLF:
+    # data = load_clf(
+    #     pickle_path=get_pkl_file_path(name_file="2d_quadrotor_clf_synthesized_taylor.pkl"),
+    #     x_set=x_set,
+    # )
+    # V_result = data["V"]
 
-    # compute epsilon for CBF synthesis:
-    V_min = compute_minimum_on_boundary(
-        x=x, p=V_result, q=sym.Polynomial(epsilon_0**2 - x.dot(x))
-    )
-    print(V_min)
-    epsilon = kappa_diff * V_min
-    print(f"We use this epsilon for the following CBF synthesis: {epsilon}")
+    # # compute epsilon for CBF synthesis:
+    # V_min = compute_minimum_on_boundary(
+    #     x=x, p=V_result, q=sym.Polynomial(epsilon_0**2 - x.dot(x))
+    # )
+    # print(V_min)
+    # epsilon = kappa_diff * V_min
+    # print(f"We use this epsilon for the following CBF synthesis: {epsilon}")
 
-    # CBF synthesis:
-    cbf_synthesis_given_clf = UnionCbfSynthesisGivenClf(
-        x=x,
-        sys_dyn_f=f,
-        sys_dyn_g=g,
-        clf=V_result,
-        rho=rho,
-        num_cbf=2,
-        unsafe_polys=unsafe_polys,
-        Au=Au,
-        bu=Au,
-        state_eq_constraints=None,
-        kappaV=kappaV,
-        kappah=kappah,
-        epsilon_0=epsilon_0,
-        epsilon=1e-10,
-        cbf_x_degrees=[1, 1],
-        cbf_ball_inclusion_ball_x_degree=2,
-        cbf_ball_inclusion_cbf_x_degree=2,
-        compatible_lambda_y_x_degrees=[2, 2],
-        compatible_xi_y_x_degree=2,
-        compatible_rho_minus_V_x_degree=2,
-        compatible_deact_cbf_x_degree=[2],
-        compatible_h_x_degree=2,
-        state_eq_x_degrees=None,
-        safety_h_x_degree=2,
-        safety_unsafe_polys_x_degree=[2, 2],
-    )
+    # # CBF synthesis:
+    # cbf_synthesis_given_clf = UnionCbfSynthesisGivenClf(
+    #     x=x,
+    #     sys_dyn_f=f,
+    #     sys_dyn_g=g,
+    #     clf=V_result,
+    #     rho=rho,
+    #     num_cbf=2,
+    #     unsafe_polys=unsafe_polys,
+    #     Au=Au,
+    #     bu=Au,
+    #     state_eq_constraints=None,
+    #     kappaV=kappaV,
+    #     kappah=kappah,
+    #     epsilon_0=epsilon_0,
+    #     epsilon=1e-10,
+    #     cbf_x_degrees=[1, 1],
+    #     cbf_ball_inclusion_ball_x_degree=2,
+    #     cbf_ball_inclusion_cbf_x_degree=2,
+    #     compatible_lambda_y_x_degrees=[2, 2],
+    #     compatible_xi_y_x_degree=2,
+    #     compatible_rho_minus_V_x_degree=2,
+    #     compatible_deact_cbf_x_degree=[2],
+    #     compatible_h_x_degree=2,
+    #     state_eq_x_degrees=None,
+    #     safety_h_x_degree=2,
+    #     safety_unsafe_polys_x_degree=[2, 2],
+    # )
 
-    # synthesis the first cbf:
-    cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
-        cbf_init=sym.Polynomial(-x[0] - x[4] + 0.1),
-        points_to_include=points_to_include,
-        weights_to_include=np.ones(points_to_include.shape[0]),
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=5,
-    )
-    assert cbf_1_result is not None
+    # # synthesis the first cbf:
+    # cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
+    #     cbf_init=sym.Polynomial(-x[0] - x[4] + 0.1),
+    #     points_to_include=points_to_include,
+    #     weights_to_include=np.ones(points_to_include.shape[0]),
+    #     anchor_points=None,
+    #     anchor_bounds=None,
+    #     max_iter=5,
+    # )
+    # assert cbf_1_result is not None
 
 
 

@@ -19,14 +19,66 @@ dim=8: p1 = [1, 1, 1, 1, 0, 0, 0, 0], p2 = [0, 0, 0, 0, 1, 1, 1, 1]
 We also record the computation time for each dimension case.
 """
 
+import os.path
 import numpy as np
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.utils import BackoffScale
+from compatible_clf_union_cbf.utils import (
+    BackoffScale,
+    serialize_polynomial,
+    deserialize_polynomial,
+)
 from compatible_clf_union_cbf.clf import ClfSynthesis
 from compatible_clf_union_cbf.union_cbf import (
     UnionCbfSynthesisGivenClf
 )
 from dynamics import HighDementionalDyanmics
+
+
+def get_pkl_file_path(filename: str):
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
+    )
+    return path
+
+
+def save_synthesized_clf(
+    V: list[sym.Polynomial],
+    x_sets: list[sym.Variables],
+    pickle_path: str,
+):
+    _, file_extension = os.path.splitext(pickle_path)
+    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
+    data = {}
+    for i in range(len(V)):
+        data["V"+str(i)] = serialize_polynomial(V[i], x_sets[i])
+
+    if os.path.exists(pickle_path):
+        overwrite_cmd = input(
+            f"File {pickle_path} already exists. Overwrite the file? Press [Y/n]:"
+        )
+        if overwrite_cmd in ("Y", "y"):
+            save_cmd = True
+        else:
+            save_cmd = False
+    else:
+        save_cmd = True
+
+    if save_cmd:
+        with open(pickle_path, "wb") as handle:
+            pickle.dump(data, handle)
+
+
+def load_synthesized_clf(pickle_path: str):
+    _, file_extension = os.path.splitext(pickle_path)
+    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
+    with open(pickle_path, "rb") as handle:
+        data = pickle.load(handle)
+    V = []
+    x_sets = []
+    for i in range(len(data)):
+        V.append(deserialize_polynomial(data["V"+str(i)]))
+        x_sets.append(sym.Variables(V[i].GetVariables()))
+    return V, x_sets
 
 
 def get_unsafe_region(x: np.ndarray, dim: int) -> np.ndarray:
@@ -129,18 +181,6 @@ def main(dim: int):
         bu=bu,
         state_eq_constraint=None,
     )
-    back_off_scale = [
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01),
-        BackoffScale(rel=None, abs=0.01)
-    ]
     V_result = clf_synthesis.bilinear_alternation(
         clf_init=V_init,
         rho=1,
@@ -157,15 +197,19 @@ def main(dim: int):
         state_eq_constraints_x_degree=None,
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=10,
+        max_iter=5,
         lagrangian_coeff_tol=1e-3,
         backoff_scale=None,
     )
     assert V_result is not None
+    
+    # save the synthesized CLF if needed:
+
 
     # synthesize the first CBF:
 
 
 
+
 if __name__ == "__main__":
-    main(dim=3)
+    main(dim=7)

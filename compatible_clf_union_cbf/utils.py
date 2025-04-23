@@ -44,7 +44,7 @@ def system_linearization(
 
 
 def compute_minimum_on_boundary(
-    x: sym.Variables,
+    x: np.ndarray,
     p: sym.Polynomial,
     q: sym.Polynomial
 ) -> Optional[float]:

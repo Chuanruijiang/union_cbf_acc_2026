@@ -1,32 +1,14 @@
 """
-In this script, we will synthesize a CLF and union of 2 CBFs for high
-dementional systems with differnt dimensions.
-We start from dim=2, 3,...8
-For each dimension case, we design the unsafe region as:
-X_u = {x | p1(x)≥0, p2(x)≥0}
-where p1(x) = -1 - p1ᵀx, p2(x) = 1 - p2ᵀx, and p1ᵀp2 = 0 meaning that
-p1(x) and p2(x) are orthogonal hyperplanes in the state space.
-We initialize the CLF using cost to go function of LQR, and initilize
-the CBFs as p1ᵀx + 0.1 and p2ᵀx - 5.
-For different dimensions, p1 and p2 are different:
-dim=2: p1 = [1, 0], p2 = [0, 1]
-dim=3: p1 = [1, 1, 0], p2 = [0, 0, 1]
-dim=4: p1 = [1, 1, 0, 0], p2 = [0, 0, 1, 1]
-dim=5: p1 = [1, 1, 1, 0, 0], p2 = [0, 0, 0, 1, 1]
-dim=6: p1 = [1, 1, 1, 0, 0, 0], p2 = [0, 0, 0, 1, 1, 1]
-dim=7: p1 = [1, 1, 1, 1, 0, 0, 0], p2 = [0, 0, 0, 0, 1, 1, 1]
-dim=8: p1 = [1, 1, 1, 1, 0, 0, 0, 0], p2 = [0, 0, 0, 0, 1, 1, 1, 1]
-We also record the computation time for each dimension case.
+This script compares the performance of synthesis time
+of CLF and union of 2 linear CBFs and the synthesis time of
+CLF and single degree 2 CBF.
 """
-
 import os.path
 import numpy as np
 import time
 import pydrake.symbolic as sym
 from compatible_clf_union_cbf.utils import (
     BackoffScale,
-    serialize_polynomial,
-    deserialize_polynomial,
     compute_minimum_on_boundary
 )
 from compatible_clf_union_cbf.clf import ClfSynthesis
@@ -34,53 +16,6 @@ from compatible_clf_union_cbf.union_cbf import (
     UnionCbfSynthesisGivenClf
 )
 from dynamics import HighDementionalDyanmics
-
-
-# def get_pkl_file_path(filename: str):
-#     path = os.path.join(
-#         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
-#     )
-#     return path
-
-
-# def save_synthesized_clf(
-#     V: list[sym.Polynomial],
-#     x_sets: list[sym.Variables],
-#     pickle_path: str,
-# ):
-#     _, file_extension = os.path.splitext(pickle_path)
-#     assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
-#     data = {}
-#     for i in range(len(V)):
-#         data["V"+str(i)] = serialize_polynomial(V[i], x_sets[i])
-
-#     if os.path.exists(pickle_path):
-#         overwrite_cmd = input(
-#             f"File {pickle_path} already exists. Overwrite the file? Press [Y/n]:"
-#         )
-#         if overwrite_cmd in ("Y", "y"):
-#             save_cmd = True
-#         else:
-#             save_cmd = False
-#     else:
-#         save_cmd = True
-
-#     if save_cmd:
-#         with open(pickle_path, "wb") as handle:
-#             pickle.dump(data, handle)
-
-
-# def load_synthesized_clf(pickle_path: str):
-#     _, file_extension = os.path.splitext(pickle_path)
-#     assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
-#     with open(pickle_path, "rb") as handle:
-#         data = pickle.load(handle)
-#     V = []
-#     x_sets = []
-#     for i in range(len(data)):
-#         V.append(deserialize_polynomial(data["V"+str(i)]))
-#         x_sets.append(sym.Variables(V[i].GetVariables()))
-#     return V, x_sets
 
 
 def get_unsafe_region(x: np.ndarray, dim: int) -> np.ndarray:
@@ -96,22 +31,6 @@ def get_unsafe_region(x: np.ndarray, dim: int) -> np.ndarray:
         sym.Polynomial(-1 - p1.dot(x)),
         sym.Polynomial(1 - p2.dot(x))
     ])
-
-
-def initialize_cbf(x: np.ndarray, dim: int) -> np.ndarray:
-    assert x.shape[0] == dim
-    if dim % 2 == 0:
-        p1 = np.array([1]*(int(dim/2)) + [0]*(int(dim/2)))
-        p2 = np.array([0]*(int(dim/2)) + [1]*(int(dim/2)))
-    else:
-        p1 = np.array([1]*(int((dim+1)/2)) + [0]*(int((dim-1)/2)))
-        p2 = np.array([0]*(int((dim+1)/2)) + [1]*(int((dim-1)/2)))
-
-    return np.array([
-        sym.Polynomial(0.5 + p1.dot(x)),
-        sym.Polynomial(-3 + p2.dot(x))
-    ])
-
 
 def points_to_include(dim: int) -> np.ndarray:
     points = np.array([
@@ -221,7 +140,7 @@ def main(dim: int):
     )
     time_end = time.time()
     clf_synthesis_time = time_end - time_start
-    print(f"Time taken for CLF synthesis: {clf_synthesis_time:.2f} seconds")
+    print(f"CLF synthesis time: {clf_synthesis_time:.4f} seconds")
     assert V_result is not None
     
     # save the synthesized CLF if needed:
@@ -231,7 +150,6 @@ def main(dim: int):
         x=x, p=V_result, q=sym.Polynomial(x.dot(x)-epsilon0**2)
     )
     epsilon = V_min * kappaV_diff
-    cbf_inits = initialize_cbf(x, dim)
 
     # synthesize the first CBF:
     cbf_synthesis_given_clf = UnionCbfSynthesisGivenClf(
@@ -249,7 +167,7 @@ def main(dim: int):
         kappah=kappa_h,
         epsilon_0=epsilon0,
         epsilon=epsilon,
-        cbf_x_degrees=[1, 1],
+        cbf_x_degrees=[2, 2],
         cbf_ball_inclusion_ball_x_degree=2,
         cbf_ball_inclusion_cbf_x_degree=2,
         compatible_lambda_y_x_degrees=[1]*dim,
@@ -264,49 +182,20 @@ def main(dim: int):
     # synthesis the first cbf:
     time_start = time.time()
     cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
-        cbf_init=cbf_inits[0],
+        cbf_init=sym.Polynomial(0.5**2 - x.dot(x)),
         points_to_include=points_include,
         weights_to_include=points_inlcude_weights,
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=5,
+        max_iter=10,
     )
     time_end = time.time()
-    cbf_1_synthesis_time = time_end - time_start
-    print(f"Time taken for CBF 1 synthesis: {cbf_1_synthesis_time:.2f} seconds")
+    cbf_synthesis_time = time_end - time_start
+    print(f"CBF synthesis time: {cbf_synthesis_time:.4f} seconds")
     assert cbf_1_result is not None
 
-    (
-        points_include,
-        points_inlusion_weights,
-    ) = cbf_synthesis_given_clf.remove_included_points(
-        included_points=points_include,
-        points_inclusion_weights=points_inlcude_weights,
-        solved_cbf=cbf_1_result,
-    )
-
-    # synthesize the second CBF:
-    time_start = time.time()
-    cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
-        cbf_init=cbf_inits[1],
-        cbf_index=1,
-        deact_cbfs=np.array([cbf_1_result]),
-        points_to_include=points_include,
-        weights_to_include=points_inlusion_weights,
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=5,
-        back_off_scale=None,
-    )
-    time_end = time.time()
-    cbf_2_synthesis_time = time_end - time_start
-    print(f"Time taken for CBF 2 synthesis: {cbf_2_synthesis_time:.2f} seconds")
-    assert cbf_2_result is not None
-
-    total_synthesis_time = (
-        clf_synthesis_time + cbf_1_synthesis_time + cbf_2_synthesis_time
-    )
-    print(f"Total synthesis time: {total_synthesis_time:.2f} seconds")
+    total_synthesis_time = clf_synthesis_time + cbf_synthesis_time
+    print(f"total synthesis time: {total_synthesis_time:.4f} seconds")
 
 
 if __name__ == "__main__":

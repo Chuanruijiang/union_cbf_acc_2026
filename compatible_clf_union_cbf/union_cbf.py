@@ -763,9 +763,9 @@ class UnionCbfSynthesisGivenClf:
         self.nu = self.sys_dyn_g.shape[1]
         self.x = x
         self.y = (
-            sym.MakeVectorContinuousVariable(self.nu, "y")
+            sym.MakeVectorContinuousVariable(2, "y")
             if Au is None
-            else sym.MakeVectorContinuousVariable(self.nu+Au.shape[0], "y")
+            else sym.MakeVectorContinuousVariable(2+Au.shape[0], "y")
             )
         self.y_squared_poly = np.array([
             sym.Polynomial(sym.Monomial(self.y[i], 2)) 

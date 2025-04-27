@@ -1206,6 +1206,86 @@ class UnionCbfSynthesisGivenClf:
         else:
             return None
     
+    def verification_first_cbf(
+        self,
+        cbf: sym.Polynomial,
+        *,
+        solver_id: Optional[solvers.SolverId] = None,
+        solver_options: Optional[solvers.SolverOptions] = None
+    ):
+        # create lagrangian degrees:
+        # (1) create ball inclusion lagrangian degree
+        (
+            ball_inclusion_lagrangian_degree
+        ) = self._create_ball_inclusion_lagrangian_degree()
+        # (2) create compatibility and unsafe exclusion lagrangian degrees
+        (
+            compatible_lagrangian_degree,
+            unsafe_exclusion_lagrangian_degree
+        ) = self._create_lagrangian_degrees_cbf_synthesis(
+            cbf_index=0
+        )
+
+        # verify the compatibility of the first cbf and the clf:
+        (
+            compatible_lagrangians,
+            ball_inclusion_lagrangians,
+            unsafe_exclusion_lagrangians
+        ) = self.search_lagrangian_given_cbf(
+            cbf=cbf,
+            deact_cbfs=None,
+            kappah=self.kappah[0],
+            compatible_lagragian_degree=compatible_lagrangian_degree,
+            ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
+            safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+            lagrangian_coeff_tol=None,
+            solver_id=solver_id,
+            solver_options=solver_options
+        )
+
+        assert compatible_lagrangians is not None
+        assert ball_inclusion_lagrangians is not None
+        assert unsafe_exclusion_lagrangians is not None
+
+    def verification_other_cbf(
+        self,
+        cbf: sym.Polynomial,
+        cbf_index: int,
+        deact_cbfs: np.ndarray,
+        *,
+        solver_id: Optional[solvers.SolverId] = None,
+        solver_options: Optional[solvers.SolverOptions] = None
+    ):
+        assert cbf_index > 0
+        assert deact_cbfs.shape[0] == cbf_index
+        # create lagrangian degrees:
+        # (1) this is not for the first cbf, hence, we do not need ball inclusion
+        ball_inclusion_lagrangian_degree = None
+        # (2) create compatibility and unsafe exclusion lagrangian degrees
+        (
+            compatible_lagrangian_degree,
+            unsafe_exclusion_lagrangian_degree
+        ) = self._create_lagrangian_degrees_cbf_synthesis(cbf_index=cbf_index)
+        (
+            compatible_lagrangians,
+            ball_inclusion_lagrangians,
+            unsafe_exclusion_lagrangians
+        ) = self.search_lagrangian_given_cbf(
+            cbf=cbf,
+            deact_cbfs=deact_cbfs,
+            kappah=self.kappah[cbf_index],
+            compatible_lagragian_degree=compatible_lagrangian_degree,
+            ball_inclusion_lagrangian_degree=ball_inclusion_lagrangian_degree,
+            safety_lagrangian_degree=unsafe_exclusion_lagrangian_degree,
+            lagrangian_coeff_tol=None,
+            solver_id=solver_id,
+            solver_options=solver_options
+        )
+
+        assert compatible_lagrangians is not None
+        assert ball_inclusion_lagrangians is None
+        assert unsafe_exclusion_lagrangians is not None
+
     def synthesis_first_cbf(
         self,
         cbf_init: sym.Polynomial,
@@ -1416,4 +1496,3 @@ class UnionCbfSynthesisGivenClf:
             new_points_to_include = new_points_to_include.reshape(-1, self.x.shape[0])
         return new_points_to_include, new_weights_to_include
 
-       

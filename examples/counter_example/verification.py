@@ -23,7 +23,7 @@ from dynamics import system_dynamics
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
     f, g = system_dynamics()
-    V = sym.Polynomial(x[0] ** 2 + x[1] ** 2)
+    V = sym.Polynomial(x.dot(x))
     h = np.array([
         sym.Polynomial(x[0] + x[1] + 1),
         sym.Polynomial(-x[0] + x[1] - 3),
@@ -35,7 +35,7 @@ def main():
 
     # Environment parameters
     epsilon_0 = 0.1
-    rho = 1
+    rho = 25
     expected_kappaV = 0.1
     kappaV = 0.15
     kappa_diff = kappaV - expected_kappaV

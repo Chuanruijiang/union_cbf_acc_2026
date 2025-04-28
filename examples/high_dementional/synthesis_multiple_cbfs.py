@@ -1,22 +1,17 @@
 """
-In this script, we will synthesize a CLF and union of 2 CBFs for high
-dementional systems with differnt dimensions.
-We start from dim=2, 3,...8
-For each dimension case, we design the unsafe region as:
-X_u = {x | p1(x)≥0, p2(x)≥0}
-where p1(x) = -1 - p1ᵀx, p2(x) = 1 - p2ᵀx, and p1ᵀp2 = 0 meaning that
-p1(x) and p2(x) are orthogonal hyperplanes in the state space.
-We initialize the CLF using cost to go function of LQR, and initilize
-the CBFs as p1ᵀx + 0.1 and p2ᵀx - 5.
-For different dimensions, p1 and p2 are different:
-dim=2: p1 = [1, 0], p2 = [0, 1]
-dim=3: p1 = [1, 1, 0], p2 = [0, 0, 1]
-dim=4: p1 = [1, 1, 0, 0], p2 = [0, 0, 1, 1]
-dim=5: p1 = [1, 1, 1, 0, 0], p2 = [0, 0, 0, 1, 1]
-dim=6: p1 = [1, 1, 1, 0, 0, 0], p2 = [0, 0, 0, 1, 1, 1]
-dim=7: p1 = [1, 1, 1, 1, 0, 0, 0], p2 = [0, 0, 0, 0, 1, 1, 1]
-dim=8: p1 = [1, 1, 1, 1, 0, 0, 0, 0], p2 = [0, 0, 0, 0, 1, 1, 1, 1]
-We also record the computation time for each dimension case.
+In this script, we wanted to investigate the average iteration time
+for bilinear alternation of synthesizing each CBFs. We wanted to know,
+as the number of CBFs grouws, will the synthesis time for each CBF also
+grow? 
+In this example, we set the obstacle as: (x0 -(-1))^2 + (x1)^2 ≤ 0.5^2
+the CBFs are initialized as:
+    cbf1 = p1ᵀx + 0.15 where p1 = [ 1, 0]
+    cbf2 = p2ᵀx - 5   where p2 = [ 1, 1]
+    cbf3 = p3ᵀx - 5   where p3 = [ 0, 1]
+    cbf4 = p4ᵀx - 5   where p4 = [-1, 1]
+if the dim is higher than 2, we just add 0 to the p1, p2, p3, p4. So
+that, in the higher dimensional space, the obstacle is a surface of a
+hyper-pillar.
 """
 
 
@@ -36,35 +31,35 @@ from dynamics import HighDementionalDyanmics
 
 def get_unsafe_region(x: np.ndarray, dim: int) -> np.ndarray:
     assert x.shape[0] == dim
-    if dim % 2 == 0:
-        p1 = np.array([1]*(int(dim/2)) + [0]*(int(dim/2)))
-        p2 = np.array([0]*(int(dim/2)) + [1]*(int(dim/2)))
-    else:
-        p1 = np.array([1]*(int((dim+1)/2)) + [0]*(int((dim-1)/2)))
-        p2 = np.array([0]*(int((dim+1)/2)) + [1]*(int((dim-1)/2)))
-
     return np.array([
-        sym.Polynomial(-1 - p1.dot(x)),
-        sym.Polynomial(1 - p2.dot(x))
+            sym.Polynomial((0.5)**2 - (x[0] + 1)**2 - x[1]**2)
     ])
 
 
 def initialize_cbf(x: np.ndarray, dim: int) -> np.ndarray:
+    assert dim >= 2 and dim <= 4
     assert x.shape[0] == dim
-    if dim % 2 == 0:
-        p1 = np.array([1]*(int(dim/2)) + [0]*(int(dim/2)))
-        p2 = np.array([0]*(int(dim/2)) + [1]*(int(dim/2)))
+    if dim == 2:
+        p1 = np.array([1, 0])
+        p2 = np.array([1, 1])
+        p3 = np.array([0, 1])
+        p4 = np.array([-1, 1])
     else:
-        p1 = np.array([1]*(int((dim+1)/2)) + [0]*(int((dim-1)/2)))
-        p2 = np.array([0]*(int((dim+1)/2)) + [1]*(int((dim-1)/2)))
+        p1 = np.array([1, 0] + [0]*(dim-2))
+        p2 = np.array([1, 1] + [0]*(dim-2))
+        p3 = np.array([0, 1] + [0]*(dim-2))
+        p4 = np.array([-1, 1] + [0]*(dim-2))
 
     return np.array([
-        sym.Polynomial(0.5 + p1.dot(x)),
-        sym.Polynomial(-3 + p2.dot(x))
+        sym.Polynomial(p1.dot(x) + 0.15),
+        sym.Polynomial(p2.dot(x) - 5),
+        sym.Polynomial(p3.dot(x) - 5),
+        sym.Polynomial(p4.dot(x) - 5)
     ])
 
 
 def points_to_include(dim: int) -> np.ndarray:
+    assert dim >= 2 and dim <= 4
     points = np.array([
         [0, 0],
         [0, 1],
@@ -81,46 +76,22 @@ def points_to_include(dim: int) -> np.ndarray:
         [-2, 1.3],
         [-1.5, 1.8],
         [-2.1, 2],
+        [-2, 1.1],
+        [-3, 1],
+        [-2.5, 1.5],
+        [-4, -0.5]
     ])
-    if points.shape[1] == dim:
-            points_include = points
+    if dim == 2:
+        assert points.shape[1] == dim
+        points_include = points
     else:
         points_include = np.zeros((points.shape[0], dim))
-    if dim % 2 == 0:
-        p1 = np.array([1]*(int(dim/2)) + [0]*(int(dim/2)))
-        p2 = np.array([0]*(int(dim/2)) + [1]*(int(dim/2)))
-        points_include[:, 0:int(dim/2)] = np.concatenate(
-            [
-                (points[:, 0]/int(dim/2)).reshape((points.shape[0], 1))
-            ]*int(dim/2),
-            axis=1
-        )
-        points_include[:, int(dim/2):] = np.concatenate(
-            [
-                (points[:, 1]/int(dim/2)).reshape((points.shape[0], 1))
-            ]*int(dim/2),
-            axis=1
-        )
-    else:
-        p1 = np.array([1]*(int((dim+1)/2)) + [0]*(int((dim-1)/2)))
-        p2 = np.array([0]*(int((dim+1)/2)) + [1]*(int((dim-1)/2)))
-        points_include[:, 0:int((dim+1)/2)] = np.concatenate(
-            [
-                (points[:, 0]/int((dim+1)/2)).reshape((points.shape[0], 1))
-            ]*int((dim+1)/2), 
-            axis=1
-        )
-        points_include[:, int((dim+1)/2):] = np.concatenate(
-            [
-                (points[:, 1]/int((dim-1)/2)).reshape((points.shape[0], 1))
-            ]*int((dim-1)/2), 
-            axis=1
-        )
+        points_include[:, 0:2] = points
     return points_include
 
 
 def main(dim: int):
-    assert dim >= 2 and dim <= 8, "dim should be in [2,8]"
+    assert dim >= 2 and dim <= 4, "dim should be in [2,4]"
 
     x = sym.MakeVectorContinuousVariable(dim, "x")
     high_dementional_system = HighDementionalDyanmics(dim)
@@ -132,7 +103,7 @@ def main(dim: int):
     epsilon0 = 0.1
     kappaV = 0.005
     kappaV_diff = 0.001
-    kappa_h = [1.0, 1.0]
+    kappa_h = [1.0, 1.0, 1.0, 1.0]
     # unsafe region
     unsafe_polys = get_unsafe_region(x, dim)
 
@@ -189,7 +160,7 @@ def main(dim: int):
         sys_dyn_g=g,
         clf=V_result,
         rho=1,
-        num_cbf=2,
+        num_cbf=4,
         unsafe_polys=unsafe_polys,
         Au=Au,
         bu=bu,
@@ -198,19 +169,20 @@ def main(dim: int):
         kappah=kappa_h,
         epsilon_0=epsilon0,
         epsilon=epsilon,
-        cbf_x_degrees=[1, 1],
+        cbf_x_degrees=[1, 1, 1, 1],
         cbf_ball_inclusion_ball_x_degree=2,
         cbf_ball_inclusion_cbf_x_degree=2,
         compatible_lambda_y_x_degrees=[1]*dim,
         compatible_xi_y_x_degree=2,
         compatible_rho_minus_V_x_degree=2,
         compatible_h_x_degree=2,
-        compatible_deact_cbf_x_degree=[2],
+        compatible_deact_cbf_x_degree=[2, 2, 2],
         state_eq_x_degrees=None,
         safety_h_x_degree=2,
-        safety_unsafe_polys_x_degree=[2, 2]
+        safety_unsafe_polys_x_degree=[2]
     )
     # synthesis the first cbf:
+    iter_num = 5
     time_start = time.time()
     cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
         cbf_init=cbf_inits[0],
@@ -218,12 +190,13 @@ def main(dim: int):
         weights_to_include=points_inlcude_weights,
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=5,
+        max_iter=iter_num,
     )
     time_end = time.time()
+    assert cbf_1_result is not None
     cbf_1_synthesis_time = time_end - time_start
     print(f"Time taken for CBF 1 synthesis: {cbf_1_synthesis_time:.2f} seconds")
-    assert cbf_1_result is not None
+    print(f"Average iteration time for CBF 1 synthesis: {cbf_1_synthesis_time/iter_num:.2f} seconds")
 
     (
         points_include,
@@ -235,6 +208,7 @@ def main(dim: int):
     )
 
     # synthesize the second CBF:
+    iter_num = 5
     time_start = time.time()
     cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
         cbf_init=cbf_inits[1],
@@ -244,19 +218,74 @@ def main(dim: int):
         weights_to_include=points_inlusion_weights,
         anchor_points=None,
         anchor_bounds=None,
-        max_iter=5,
+        max_iter=iter_num,
         back_off_scale=None,
     )
     time_end = time.time()
+    assert cbf_2_result is not None
     cbf_2_synthesis_time = time_end - time_start
     print(f"Time taken for CBF 2 synthesis: {cbf_2_synthesis_time:.2f} seconds")
-    assert cbf_2_result is not None
+    print(f"Average iteration time for CBF 2 synthesis: {cbf_2_synthesis_time/iter_num:.2f} seconds")
 
-    total_synthesis_time = (
-        clf_synthesis_time + cbf_1_synthesis_time + cbf_2_synthesis_time
+    (
+        points_include,
+        points_inlusion_weights,
+    ) = cbf_synthesis_given_clf.remove_included_points(
+        included_points=points_include,
+        points_inclusion_weights=points_inlcude_weights,
+        solved_cbf=cbf_2_result,
     )
-    print(f"Total synthesis time: {total_synthesis_time:.2f} seconds")
+
+    # synthesize the third CBF:
+    iter_num = 5
+    time_start = time.time()
+    cbf_3_result = cbf_synthesis_given_clf.synthesis_other_cbf(
+        cbf_init=cbf_inits[2],
+        cbf_index=2,
+        deact_cbfs=np.array([cbf_1_result, cbf_2_result]),
+        points_to_include=points_include,
+        weights_to_include=points_inlusion_weights,
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=iter_num,
+        back_off_scale=None,
+    )
+    time_end = time.time()
+    assert cbf_3_result is not None
+    cbf_3_synthesis_time = time_end - time_start
+    print(f"Time taken for CBF 3 synthesis: {cbf_3_synthesis_time:.2f} seconds")
+    print(f"Average iteration time for CBF 3 synthesis: {cbf_3_synthesis_time/iter_num:.2f} seconds")
+
+    # synthesize the fourth CBF:
+    (
+        points_include,
+        points_inlusion_weights,
+    ) = cbf_synthesis_given_clf.remove_included_points(
+        included_points=points_include,
+        points_inclusion_weights=points_inlcude_weights,
+        solved_cbf=cbf_2_result,
+    )
+
+    # synthesize the third CBF:
+    iter_num = 5
+    time_start = time.time()
+    cbf_4_result = cbf_synthesis_given_clf.synthesis_other_cbf(
+        cbf_init=cbf_inits[3],
+        cbf_index=3,
+        deact_cbfs=np.array([cbf_1_result, cbf_2_result, cbf_3_result]),
+        points_to_include=points_include,
+        weights_to_include=points_inlusion_weights,
+        anchor_points=None,
+        anchor_bounds=None,
+        max_iter=iter_num,
+        back_off_scale=None,
+    )
+    time_end = time.time()
+    assert cbf_4_result is not None
+    cbf_4_synthesis_time = time_end - time_start
+    print(f"Time taken for CBF 4 synthesis: {cbf_4_synthesis_time:.2f} seconds")
+    print(f"Average iteration time for CBF 4 synthesis: {cbf_4_synthesis_time/iter_num:.2f} seconds")
 
 
 if __name__ == "__main__":
-    main(dim=6)
+    main(dim=4)

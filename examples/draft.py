@@ -1,69 +1,30 @@
 import numpy as np
-
+import pydrake.symbolic as sym
+import union_cbf_base.non_empty_subset as mut
 
 def main():
-    points = np.array([
-        [0, 0],
-        [0, 1],
-        [-0.5, 0.5],
-        [-0.5, -0.5],
-        [0.6, -0.5],
-        [0.4, 0.5],
-        [0.4, 1.2],
-        [1.3, 1.1],
-        [2, 0.3],
-        [-0.5, 1.8],
-        [-1, 1.5],
-        [-1.3, 1.5],
-        [-2, 1.3],
-        [-1.5, 1.8],
-        [-2.1, 2],
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    cbfs = np.array([
+        (0.8)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2,
+        (0.8)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2
     ])
-    
-    count = 0
-    for dim in range(2, 9):
-        if points.shape[1] == dim:
-            points_to_check = points
-        else:
-            points_to_check = np.zeros((points.shape[0], dim))
-        if dim % 2 == 0:
-            p1 = np.array([1]*(int(dim/2)) + [0]*(int(dim/2)))
-            p2 = np.array([0]*(int(dim/2)) + [1]*(int(dim/2)))
-            points_to_check[:, 0:int(dim/2)] = np.concatenate(
-                [
-                    (points[:, 0]/int(dim/2)).reshape((points.shape[0], 1))
-                ]*int(dim/2),
-                axis=1
-            )
-            points_to_check[:, int(dim/2):] = np.concatenate(
-                [
-                    (points[:, 1]/int(dim/2)).reshape((points.shape[0], 1))
-                ]*int(dim/2),
-                axis=1
-            )
-        else:
-            p1 = np.array([1]*(int((dim+1)/2)) + [0]*(int((dim-1)/2)))
-            p2 = np.array([0]*(int((dim+1)/2)) + [1]*(int((dim-1)/2)))
-            points_to_check[:, 0:int((dim+1)/2)] = np.concatenate(
-                [
-                    (points[:, 0]/int((dim+1)/2)).reshape((points.shape[0], 1))
-                ]*int((dim+1)/2), 
-                axis=1
-            )
-            points_to_check[:, int((dim+1)/2):] = np.concatenate(
-                [
-                    (points[:, 1]/int((dim-1)/2)).reshape((points.shape[0], 1))
-                ]*int((dim-1)/2), 
-                axis=1
-            )
-        
-        for point in points_to_check:
-            if (-1-np.dot(point, p1)) >= 0 and (1-np.dot(point, p2)) >= 0:
-                print(f"Point {point} is in the unsafe region of dimension {dim}")
-                count += 1
-            else:
-                print(f"Point {point} is not in the unsafe region of dimension {dim}")
-    
+    subset_1 = mut.Subset(
+        x = x,
+        cbfs = cbfs,
+        activation_index=np.array([1, 1])
+    )
+    emptiness_check_result = subset_1.is_empty()
+    assert emptiness_check_result == False
+    subset_1.activation_index = np.array([1, 0])
+    emptiness_check_result = subset_1.is_empty()
+    assert emptiness_check_result == False
+    subset_1.activation_index = np.array([0, 1])
+    emptiness_check_result = subset_1.is_empty()
+    assert emptiness_check_result == False
+    subset_1.activation_index = np.array([0, 0])
+    emptiness_check_result = subset_1.is_empty()
+    assert emptiness_check_result == False
+
 
 if __name__ == "__main__":
     main()

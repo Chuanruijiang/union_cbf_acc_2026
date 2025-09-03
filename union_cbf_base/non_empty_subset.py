@@ -54,6 +54,7 @@ the variables c are optional.
 In the following codes, "activated" referes to h(x)≥0, while 
 "deactivated" refers to h'(x)<0. 
 """
+
 @dataclass
 class SubsetEmptinessLagrangian:
     activated_cbf: np.ndarray

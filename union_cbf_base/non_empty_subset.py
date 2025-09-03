@@ -12,48 +12,46 @@ from union_cbf_base.utils import (
     solve_with_id,
 )
 
-"""
-In this section, we want to get all the non-empty subsets of union CBFs.
+# """
+# In this section, we want to get all the non-empty subsets of union CBFs.
 
-Given CBFs h1,...,hn. Let P = {1,...,n}. We want get the following:
-1. All possible subsets of P except the empty set, denoted as Sᴾ
-2. For all N ∈ Sᴾ, let the set S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
-   We check if S_N is empty.
-3. Return all the S_N that are not empty.
+# Given CBFs h1,...,hn. Let P = {1,...,n}. We want get the following:
+# 1. All possible subsets of P except the empty set, denoted as Sᴾ
+# 2. For all N ∈ Sᴾ, let the set S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
+#    We check if S_N is empty.
+# 3. Return all the S_N that are not empty.
 
-All the three steps above are finally integrated into the function 
-"get_non_empty_region(h)", where the input argument "h" should be an
-array of polynomials. h=[h1, h2, ..., hn]. 
+# All the three steps above are finally integrated into the function 
+# "get_non_empty_region(h)", where the input argument "h" should be an
+# array of polynomials. h=[h1, h2, ..., hn]. 
 
-Note: In this code base, we will not compute all possible subset of P,
-instead, we first generate a truth table for n-number of elements. 
-Except the all-zero row in the truth table, all the other rows are 
-boolean mask that tells us which cbf is ≥ 0 and which is not for a
-subset S_N, with N ∈ Sᴾ. 
-"""
+# Note: In this code base, we will not compute all possible subset of P,
+# instead, we first generate a truth table for n-number of elements. 
+# Except the all-zero row in the truth table, all the other rows are 
+# boolean mask that tells us which cbf is ≥ 0 and which is not for a
+# subset S_N, with each N ∈ Sᴾ.  
 
-"""
-The following module will be used to check whether a subset with form
-S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
-is empty
+# The following module will be used to check whether a subset with form
+# S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
+# is empty
 
-Let's use the following example to show how to verify the emptiness:
-if a subset is: {x|h1(x)≥0, h2(x)<0}
-checking the emptiness of this subset is equivalent to checking
-whether the following set is empty:
-{(x,c)| h1(x)≥ 0, c1^2h2(x)=-1}
-hence, we can use the following SOS program to check the emptiness:
+# Let's use the following example to show how to verify the emptiness:
+# if a subset is: {x|h1(x)≥0, h2(x)<0}
+# checking the emptiness of this subset is equivalent to checking
+# whether the following set is empty:
+# {(x,c)| h1(x)≥ 0, c1^2h2(x)=-1}
+# hence, we can use the following SOS program to check the emptiness:
 
--1 - s1(x,c)*h1(x) - s2(x,c)*(c1^2h2(x)+1) is SOS
+# -1 - s1(x,c)*h1(x) - s2(x,c)*(c1^2h2(x)+1) is SOS
 
-where s1 is SOS, s2 is a free polynomial.
+# where s1 is SOS, s2 is a free polynomial.
 
-Since we may also have a set S_N = {x|h1(x)≥ 0,...,hn(x)≥ 0}, then
-the variables c are optional.
+# Since we may also have a set S_N = {x|h1(x)≥ 0,...,hn(x)≥ 0}, then
+# the variables c are optional.
 
-In the following codes, "activated" referes to h(x)≥0, while 
-"deactivated" refers to h'(x)<0. 
-"""
+# In the following codes, "activated" referes to h(x)≥0, while 
+# "deactivated" refers to h'(x)<0. 
+# """
 
 @dataclass
 class SubsetEmptinessLagrangian:
@@ -208,6 +206,7 @@ class Subset:
 
         # emptiness check
         prog = solvers.MathematicalProgram()
+        x_set = sym.Variables(self.x)
         c_set = None
         if c_size > 0:
             c = sym.MakeVectorContinuousVariable(c_size,"c")
@@ -219,7 +218,6 @@ class Subset:
             xc_set = sym.Variables(xc)
             prog.AddIndeterminates(xc_set)
         else:
-            x_set = sym.Variables(self.x)
             prog.AddIndeterminates(x_set)
 
         lagrangians = lagrangian_degree.to_lagrangians(
@@ -252,9 +250,7 @@ class Subset:
         
 
 def get_non_empty_region(
-    rho_minus_V: sym.Polynomial,
     h: np.ndarray,
-    r: float, # NOT SQUARED
     x: np.ndarray,
     *,
     lagrangian_x_degree: int = 2,
@@ -286,10 +282,10 @@ def get_non_empty_region(
         subset = Subset(
             x=x,
             cbfs=h,
-            rho_minus_clf=rho_minus_V,
-            ball_radius=r,
             activation_index=activation_case,
         )
+        if np.sum(activation_case) == h.shape[0]:
+            lagrangian_act_c_degree = 0
         # check the emptiness of the subset
         if not subset.is_empty(
             lagrangian_x_degree=lagrangian_x_degree,

@@ -4,7 +4,7 @@ sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
 
 import numpy as np
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.clf_union_cbf import(
+from union_cbf_base.clf_union_cbf import(
     CompatibleClfUnionCbfs
 )
 from dynamics import system_dynamics

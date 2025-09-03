@@ -10,10 +10,10 @@ import matplotlib.axes
 import matplotlib.contour
 import matplotlib.pyplot as plt
 
-from compatible_clf_union_cbf.utils import(
+from union_cbf_base.utils import(
     deserialize_polynomial
 )
-from compatible_clf_union_cbf.plot import(
+from union_cbf_base.plot import(
     plot_2D_function,
 )
 

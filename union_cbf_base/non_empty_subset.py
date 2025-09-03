@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Union
 from typing_extensions import Self
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.utils import (
+from union_cbf_base.utils import (
     truth_table,
     Degree,
     to_lagrangian_impl,
@@ -13,54 +13,57 @@ from compatible_clf_union_cbf.utils import (
 )
 
 """
-In this section, we want to get all the non-empty subsets of union CBFs 
-ouside the ball.
+In this section, we want to get all the non-empty subsets of union CBFs.
 
-Given CBFs h1,...,hn and r. Let N = {1,...,n}. We want get the following:
-1. All possible set with form: {x| ∃ i∈N hi(x)≥0, r-xᵀx < 0}
-2. Exclude the empty set among all the sets above
-3. Return the rest of the sets.
+Given CBFs h1,...,hn. Let P = {1,...,n}. We want get the following:
+1. All possible subsets of P except the empty set, denoted as Sᴾ
+2. For all N ∈ Sᴾ, let the set S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
+   We check if S_N is empty.
+3. Return all the S_N that are not empty.
 
 All the three steps above are finally integrated into the function 
-"get_non_empty_region(h, r)"
+"get_non_empty_region(h)", where the input argument "h" should be an
+array of polynomials. h=[h1, h2, ..., hn]. 
+
+Note: In this code base, we will not compute all possible subset of P,
+instead, we first generate a truth table for n-number of elements. 
+Except the all-zero row in the truth table, all the other rows are 
+boolean mask that tells us which cbf is ≥ 0 and which is not for a
+subset S_N, with N ∈ Sᴾ. 
 """
-
-
 
 """
 The following module will be used to check whether a subset with form
-{x| ∃ i∈N hi(x)≥0, r-xᵀx < 0}
+S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
 is empty
 
 Let's use the following example to show how to verify the emptiness:
-if a subset is: {x|h1(x)≥0, h2(x)<0, r-xᵀx < 0}
+if a subset is: {x|h1(x)≥0, h2(x)<0}
 checking the emptiness of this subset is equivalent to checking
 whether the following set is empty:
-{(x,c)| h1(x)≥ 0, c1^2h2(x)=-1, c2^2(r-xᵀx)=-1}
+{(x,c)| h1(x)≥ 0, c1^2h2(x)=-1}
 hence, we can use the following SOS program to check the emptiness:
 
--1 - s1(x,c)*h1(x) - s2(x,c)*(c1^2h2(x)+1) - s3(x,c)*(c2^2(r-xᵀx)+1) is SOS
+-1 - s1(x,c)*h1(x) - s2(x,c)*(c1^2h2(x)+1) is SOS
 
-where s1 is SOS, s2 and s3 are free polynomials
-Noted that c variable is not optional for the lagrangians since we always 
-have r - xᵀx < 0 in the subset.
+where s1 is SOS, s2 is a free polynomial.
 
+Since we may also have a set S_N = {x|h1(x)≥ 0,...,hn(x)≥ 0}, then
+the variables c are optional.
+
+In the following codes, "activated" referes to h(x)≥0, while 
+"deactivated" refers to h'(x)<0. 
 """
 @dataclass
 class SubsetEmptinessLagrangian:
-    stable_region: sym.Polynomial
     activated_cbf: np.ndarray
     deactivated_cbf: Optional[np.ndarray]
-    ball_outside: sym.Polynomial
 
     def get_result(
         self,
         result: solvers.MathematicalProgramResult,
         coefficient_tol: Optional[float],
     ) -> Self:
-        lagrangian_stable_region_result = get_polynomial_result(
-            result, self.stable_region, coefficient_tol
-        )
         lagrangian_activaed_cbf_result = get_polynomial_result(
             result, self.activated_cbf, coefficient_tol
         )
@@ -71,46 +74,31 @@ class SubsetEmptinessLagrangian:
                 result, self.deactivated_cbf, coefficient_tol
                 )
         )
-        lagrangian_ball_outside_result = get_polynomial_result(
-            result, self.ball_outside, coefficient_tol
-        )
         return SubsetEmptinessLagrangian(
-            stable_region=lagrangian_stable_region_result,
             activated_cbf=lagrangian_activaed_cbf_result,
-            deactivated_cbf=lagrangian_deactivated_cbf_result,
-            ball_outside = lagrangian_ball_outside_result
+            deactivated_cbf=lagrangian_deactivated_cbf_result
         )
 
 @dataclass
 class SubsetEmptinessLagrangianDegree:
-    stable_region: Degree
     activated_cbf: List[Degree]
     deactivated_cbf: Optional[List[Degree]]
-    ball_outside: Degree
 
     def to_lagrangians(
         self,
         prog: solvers.MathematicalProgram,
         x: sym.Variable,
-        c: sym.Variable,
+        c: Optional[sym.Variable],
         *,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-        lagrangian_stable_region: Optional[sym.Polynomial] = None,
         lagrangian_activated_cbf: Optional[np.ndarray] = None,
         lagrangian_deactivated_cbf: Optional[np.ndarray] = None,
-        lagrangian_ball_outside: Optional[sym.Polynomial] = None,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ):
+        # if there is no activated cbfs in the current subset,
+        # then the c variable should also be None.
+        if self.deactivated_cbf is None:
+            assert c is None
         
-        lagrangian_stable_region = to_lagrangian_impl(
-            prog=prog,
-            x=x,
-            y=None,
-            c=c,
-            sos_type=sos_type,
-            degree=self.stable_region,
-            is_sos=True,
-            lagrangian=lagrangian_stable_region,
-        )
         lagrangian_activated_cbf = to_lagrangian_impl(
             prog=prog,
             x=x,
@@ -128,7 +116,7 @@ class SubsetEmptinessLagrangianDegree:
                 prog=prog,
                 x=x,
                 y=None,
-                c=None,
+                c=c,
                 sos_type=sos_type,
                 degree=self.deactivated_cbf,
                 is_sos=False,
@@ -139,22 +127,10 @@ class SubsetEmptinessLagrangianDegree:
                     ),
             )
         )
-        lagrangian_ball_outside = to_lagrangian_impl(
-            prog=prog,
-            x=x,
-            y=None,
-            c=None,
-            sos_type=sos_type,
-            degree=self.ball_outside,
-            is_sos=False,
-            lagrangian=lagrangian_ball_outside,
-        )
 
         return SubsetEmptinessLagrangian(
-            stable_region=lagrangian_stable_region,
             activated_cbf=lagrangian_activated_cbf,
-            deactivated_cbf=lagrangian_deactivated_cbf,
-            ball_outside=lagrangian_ball_outside
+            deactivated_cbf=lagrangian_deactivated_cbf
         )
 
 @dataclass
@@ -163,70 +139,87 @@ class Subset:
     # This array of Polynomial containts all the CBFs
     # (including activated and deactivated CBFs)
     cbfs: np.ndarray
-    rho_minus_clf: sym.Polynomial
-    # this is the radius of the ball
-    # note that it is NOT SQUARED
-    ball_radius: float
-    # a 1D array showing the activated CBF indecies.
-    # for example [1, 0, 0] means h1≥0, h2<0, h3<0
+    # a 1D array showing the activated CBF indecies. 
+    # According to the setup above, this indices vector stands
+    # for a possible N ∈ P. 
     activation_index: np.ndarray 
 
     def _create_emtiness_lagrangian_degrees(
         self,
         lagrangian_x_degree: int,
-        lagrangian_c_degree: int,
+        lagrangian_act_c_degree: int,
+        lagrangian_deact_c_degree: int
     ) -> SubsetEmptinessLagrangianDegree:
         num_activated_cbf = np.sum(self.activation_index)
+        
+        # check whether the number of activated CBFs is valid:
+        assert num_activated_cbf > 0
+        assert num_activated_cbf <= self.cbfs.shape[0]
+        
         num_deactivated_cbf = self.cbfs.shape[0] - num_activated_cbf
         lagrangian_degrees = SubsetEmptinessLagrangianDegree(
-            stable_region=Degree(x=lagrangian_x_degree, y=0, c=lagrangian_c_degree),
-            activated_cbf=[
-                Degree(x=lagrangian_x_degree, y = 0, c=lagrangian_c_degree)
-                ] * num_activated_cbf,
-            deactivated_cbf=(
-                [Degree(x=lagrangian_x_degree, y = 0, c=0)]* num_deactivated_cbf 
+            activated_cbf=[Degree(
+                x=lagrangian_x_degree,
+                y = 0,
+                c=lagrangian_act_c_degree
+                )] * num_activated_cbf,
+            deactivated_cbf=([Degree(
+                x=lagrangian_x_degree,
+                y = 0,
+                c=lagrangian_deact_c_degree
+                )] * num_deactivated_cbf
                 if num_deactivated_cbf > 0
                 else None
-            ),
-            ball_outside=Degree(x=lagrangian_x_degree, y=0, c=0),
+            )
         )
         return lagrangian_degrees
 
     def is_empty(
         self,
         lagrangian_x_degree: int,
-        lagrangian_c_degree: int,
+        lagrangian_act_c_degree: int,
+        lagrangian_deact_c_degree: int,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> bool:
         
         lagrangian_degree = self._create_emtiness_lagrangian_degrees(
             lagrangian_x_degree=lagrangian_x_degree,
-            lagrangian_c_degree=lagrangian_c_degree,
+            lagrangian_act_c_degree=lagrangian_act_c_degree,
+            lagrangian_deact_c_degree=lagrangian_deact_c_degree
         )
-        c_size = 1
+        # total number of c variables in the lagrangians,
+        # if there are some deactivated cbfs in the subset's 
+        # expression, then the c_size should be the number of 
+        # deactivated cbfs. Otherwise it is just 0.
+        c_size = 0 
 
         # initial check:
-        assert self.cbfs.shape[0] == self.activation_index.shape[0]
-        assert len(lagrangian_degree.activated_cbf) == np.sum(self.activation_index)
+        assert len(
+            lagrangian_degree.activated_cbf
+            ) == np.sum(self.activation_index)
         if lagrangian_degree.deactivated_cbf is not None:
-            assert self.cbfs.shape[0] - np.sum(self.activation_index) == len(
+            assert len(
                 lagrangian_degree.deactivated_cbf
-            )
-            c_size = len(lagrangian_degree.deactivated_cbf) + 1
+            ) == self.cbfs.shape[0] - np.sum(self.activation_index)
+            c_size = len(lagrangian_degree.deactivated_cbf)
         else:
             assert self.cbfs.shape[0] == np.sum(self.activation_index)
-        
+
         # emptiness check
         prog = solvers.MathematicalProgram()
-        c = sym.MakeVectorContinuousVariable(c_size,"c")
-        xc = np.concatenate([self.x, c], axis=0)
-        x_set = sym.Variables(self.x)
-        c_set = sym.Variables(c)
-        c_squared_poly = np.array(
+        c_set = None
+        if c_size > 0:
+            c = sym.MakeVectorContinuousVariable(c_size,"c")
+            c_set = sym.Variables(c)
+            c_squared_poly = np.array(
                 [sym.Polynomial(sym.Monomial(c[i], 2)) for i in range(c.shape[0])]
             )
-        xc_set = sym.Variables(xc)
-        prog.AddIndeterminates(xc_set)
+            xc = np.concatenate([self.x, c], axis=0)
+            xc_set = sym.Variables(xc)
+            prog.AddIndeterminates(xc_set)
+        else:
+            x_set = sym.Variables(self.x)
+            prog.AddIndeterminates(x_set)
 
         lagrangians = lagrangian_degree.to_lagrangians(
             prog=prog,
@@ -235,24 +228,18 @@ class Subset:
             sos_type=sos_type,
         )
         
-        lagrangian_stable_region = lagrangians.stable_region*self.rho_minus_clf
-        lagrangian_activated_cbf = lagrangians.activated_cbf.dot(
+        lagrangian_times_activated_cbf = lagrangians.activated_cbf.dot(
             self.cbfs[self.activation_index == 1]
             )
-        lagrangian_deactivated_cbf = sym.Polynomial(0)
+        lagrangian_times_deactivated_cbf = sym.Polynomial(0)
         if lagrangian_degree.deactivated_cbf is not None:
             deactivated_cbfs = self.cbfs[self.activation_index == 0]
             lagrangian_deactivated_cbf = lagrangians.deactivated_cbf.dot(
-                c_squared_poly[:-1] * deactivated_cbfs
+                c_squared_poly * deactivated_cbfs
             ) + 1
-        lagrangian_ball = lagrangians.ball_outside * (
-            c_squared_poly[-1] * (self.ball_radius**2 - self.x.dot(self.x)) + 1
-        )
         poly = (- sym.Polynomial(1)
-                - lagrangian_stable_region
-                - lagrangian_activated_cbf
-                - lagrangian_deactivated_cbf
-                - lagrangian_ball
+                - lagrangian_times_activated_cbf
+                - lagrangian_times_deactivated_cbf
                 )
         prog.AddSosConstraint(poly)
         
@@ -270,7 +257,8 @@ def get_non_empty_region(
     x: np.ndarray,
     *,
     lagrangian_x_degree: int = 2,
-    lagrangian_c_degree: int = 2,
+    lagrangian_act_c_degree: int = 2,
+    lagrangian_deact_c_degree: int = 0,
     sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
 ) -> List[Subset]:
     """
@@ -304,7 +292,8 @@ def get_non_empty_region(
         # check the emptiness of the subset
         if not subset.is_empty(
             lagrangian_x_degree=lagrangian_x_degree,
-            lagrangian_c_degree=lagrangian_c_degree,
+            lagrangian_act_c_degree=lagrangian_act_c_degree,
+            lagrangian_deact_c_degree=lagrangian_deact_c_degree,
             sos_type=sos_type,
         ):
             non_empty_subsets.append(subset)

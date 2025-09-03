@@ -4,7 +4,7 @@ import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 from typing import List, Optional, Tuple
 from typing_extensions import Self
-from compatible_clf_union_cbf.utils import (
+from union_cbf_base.utils import (
     Degree,
     to_lagrangian_impl,
     get_polynomial_result,
@@ -16,7 +16,7 @@ from compatible_clf_union_cbf.utils import (
     new_sos_polynomial,
     solve_with_id,
 )
-from compatible_clf_union_cbf.inclusion import (
+from union_cbf_base.inclusion import (
     BallInclusionLagrangianDegree,
     BallInclusionLagrangian,
     BallInclusion,

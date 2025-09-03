@@ -1,6 +1,6 @@
 import numpy as np
 import pydrake.symbolic as sym
-import compatible_clf_union_cbf.inclusion as icl
+import union_cbf_base.inclusion as icl
 
 
 def test_ball_inclusion():

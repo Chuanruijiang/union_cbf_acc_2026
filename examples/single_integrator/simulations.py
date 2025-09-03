@@ -15,15 +15,15 @@ import matplotlib.contour
 import matplotlib.pyplot as plt
 import pydrake.symbolic as sym
 
-from compatible_clf_union_cbf.utils import(
+from union_cbf_base.utils import(
     deserialize_polynomial,
 )
 from dynamics import system_dynamics_forward
-from compatible_clf_union_cbf.controller import(
+from union_cbf_base.controller import(
      cbf_clf_qp,
      compared_cbf_qp,
      )
-from compatible_clf_union_cbf.plot import(
+from union_cbf_base.plot import(
     plot_2D_function,
     plot_intersection_region,
     plot_union_region,

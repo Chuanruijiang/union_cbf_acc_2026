@@ -7,12 +7,12 @@ import os.path
 import numpy as np
 import time
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.utils import (
+from union_cbf_base.utils import (
     BackoffScale,
     compute_minimum_on_boundary
 )
-from compatible_clf_union_cbf.clf import ClfSynthesis
-from compatible_clf_union_cbf.union_cbf import (
+from union_cbf_base.clf import ClfSynthesis
+from union_cbf_base.union_cbf import (
     UnionCbfSynthesisGivenClf
 )
 from dynamics import HighDementionalDyanmics

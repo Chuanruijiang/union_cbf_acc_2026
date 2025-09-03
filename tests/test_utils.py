@@ -1,4 +1,4 @@
-import compatible_clf_union_cbf.utils as mut
+import union_cbf_base.utils as mut
 
 import numpy as np
 import pytest  # noqa

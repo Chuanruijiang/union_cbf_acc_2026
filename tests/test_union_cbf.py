@@ -1,6 +1,6 @@
-import compatible_clf_union_cbf.union_cbf as mut
+import union_cbf_base.union_cbf as mut
 import numpy as np
-from compatible_clf_union_cbf.utils import Degree
+from union_cbf_base.utils import Degree
 
 import pydrake.symbolic as sym
 

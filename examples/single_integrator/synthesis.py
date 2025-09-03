@@ -9,16 +9,16 @@ from typing import Optional
 import numpy as np
 import pydrake.symbolic as sym
 
-from compatible_clf_union_cbf.utils import(
+from union_cbf_base.utils import(
     compute_minimum_on_boundary,
     serialize_polynomial,
     deserialize_polynomial,
     BackoffScale
 )
-from compatible_clf_union_cbf.clf import(
+from union_cbf_base.clf import(
     ClfSynthesis
 )
-from compatible_clf_union_cbf.union_cbf import(
+from union_cbf_base.union_cbf import(
     UnionCbfSynthesisGivenClf
 )
 

@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Union
 from typing_extensions import Self
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.utils import (
+from union_cbf_base.utils import (
     Degree,
     to_lagrangian_impl,
     get_polynomial_result,

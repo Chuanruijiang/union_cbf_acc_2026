@@ -6,7 +6,7 @@ import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 
-from compatible_clf_union_cbf.utils import (
+from union_cbf_base.utils import (
     truth_table,
     get_polynomial_result,
     solve_with_id,
@@ -17,7 +17,7 @@ from compatible_clf_union_cbf.utils import (
     is_sos,
     BackoffScale
 )
-from compatible_clf_union_cbf.inclusion import(
+from union_cbf_base.inclusion import(
     BallInclusionLagrangian,
     BallInclusionLagrangianDegree,
     BallInclusion,

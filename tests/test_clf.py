@@ -1,6 +1,6 @@
 import numpy as np
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.clf import(
+from union_cbf_base.clf import(
     ClfSynthesis
 )
 from examples.single_integrator.dynamics import system_dynamics

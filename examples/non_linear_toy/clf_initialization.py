@@ -21,8 +21,8 @@ import numpy as np
 import pydrake.symbolic as sym
 import pydrake.systems.controllers as controllers
 from typing import Optional
-from compatible_clf_union_cbf.utils import system_linearization, serialize_polynomial
-from compatible_clf_union_cbf.inclusion import BallInclusion
+from union_cbf_base.utils import system_linearization, serialize_polynomial
+from union_cbf_base.inclusion import BallInclusion
 from dynamics import system_dynamics
 
 sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))

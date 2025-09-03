@@ -81,8 +81,8 @@ def compute_minimum_on_boundary(
 def truth_table(n: int) -> np.ndarray:
     """
     Given n, return the truth table of n variables.
-    We use this function to generate the 0-1 vectors for all
-    possible disjoint subsets of the union of a given set of
+    We use this function to generate the boolean masks for all
+    possible disjoint subsets (S_N in our paper) of the union of a given set of
     cbfs. The 0-1 vector identifies wich cbf is activated and
     which is not in a subset.
     For example, given a set of 3 cbfs, the output

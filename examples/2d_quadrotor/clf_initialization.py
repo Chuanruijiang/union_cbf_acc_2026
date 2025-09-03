@@ -23,9 +23,9 @@ import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 import pydrake.systems.controllers as controllers
 
-from compatible_clf_union_cbf.utils import serialize_polynomial
-from compatible_clf_union_cbf import clf
-from compatible_clf_union_cbf.inclusion import BallInclusion
+from union_cbf_base.utils import serialize_polynomial
+from union_cbf_base import clf
+from union_cbf_base.inclusion import BallInclusion
 from dynamics import (Quadrotor2dPlant, Quadrotor2dTrigPlant)
 
 

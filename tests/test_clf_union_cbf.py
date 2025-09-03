@@ -1,8 +1,8 @@
 import numpy as np
 import pydrake.symbolic as sym
-import compatible_clf_union_cbf.clf_union_cbf as mut
-from compatible_clf_union_cbf.utils import Degree
-from compatible_clf_union_cbf.union_cbf import UnionSubset
+import union_cbf_base.clf_union_cbf as mut
+from union_cbf_base.utils import Degree
+from union_cbf_base.union_cbf import UnionSubset
 
 
 def test_calc_xi_lambda():

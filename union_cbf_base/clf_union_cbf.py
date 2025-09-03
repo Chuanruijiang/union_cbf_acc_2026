@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple, Union
 from typing_extensions import Self
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
-from compatible_clf_union_cbf.utils import (
+from union_cbf_base.utils import (
     Degree,
     to_lagrangian_impl,
     get_polynomial_result,
@@ -16,13 +16,13 @@ from compatible_clf_union_cbf.utils import (
     lie_derivative,
     check_array_of_polynomials,
 )
-from compatible_clf_union_cbf.union_cbf import(
+from union_cbf_base.union_cbf import(
     UnionCBF,
     UnionSubset,
     ActivationIndicator
 )
 
-from compatible_clf_union_cbf.inclusion import(
+from union_cbf_base.inclusion import(
     BallInclusionLagrangian,
     BallInclusionLagrangianDegree,
     BallInclusion,
@@ -31,7 +31,7 @@ from compatible_clf_union_cbf.inclusion import(
     UnsafeRegionExclusionLagrangianDegrees,
     PointsInclusionConstriants
 )
-from compatible_clf_union_cbf.utils import(
+from union_cbf_base.utils import(
     serialize_polynomial,
     deserialize_polynomial
 )

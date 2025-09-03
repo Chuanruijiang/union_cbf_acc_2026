@@ -16,8 +16,8 @@ sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))
 import pydrake.symbolic as sym
 import pydrake.systems.controllers as controllers
 
-from compatible_clf_union_cbf.utils import serialize_polynomial
-from compatible_clf_union_cbf.inclusion import BallInclusion
+from union_cbf_base.utils import serialize_polynomial
+from union_cbf_base.inclusion import BallInclusion
 from dynamics import HighDementionalDyanmics
 
 

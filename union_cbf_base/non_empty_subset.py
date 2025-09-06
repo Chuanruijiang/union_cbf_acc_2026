@@ -17,7 +17,8 @@ from union_cbf_base.utils import (
 
 # Given CBFs h1,...,hn. Let P = {1,...,n}. We want get the following:
 # 1. All possible subsets of P except the empty set, denoted as Sᴾ
-# 2. For all N ∈ Sᴾ, let the set S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
+# 2. For all N ∈ Sᴾ, let the set 
+#       S_N = {x| hₚ(x)≥0, ∀ i∈ N; hₚ'(x) < 0, ∀ p'∈ P\N}
 #    We check if S_N is empty.
 # 3. Return all the S_N that are not empty.
 

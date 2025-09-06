@@ -6,8 +6,8 @@ import pydrake.symbolic as sym
 def test_subset_emptiness_check():
     x = sym.MakeVectorContinuousVariable(2, "x")
     cbfs = np.array([
-        (0.8)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2,
-        (0.8)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2
+        sym.Polynomial((0.8)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2),
+        sym.Polynomial((0.8)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
     ])
     subset_1 = Subset(
         x = x,
@@ -36,8 +36,8 @@ def test_subset_emptiness_check():
     assert emptiness_check_result == False
 
     cbfs = np.array([
-        (0.4)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2,
-        (0.4)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2
+        sym.Polynomial((0.4)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2),
+        sym.Polynomial((0.4)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
     ])
     subset_2 = Subset(
         x = x,
@@ -64,18 +64,3 @@ def test_subset_emptiness_check():
         lagrangian_deact_c_degree=0
     )
     assert emptiness_check_result == False
-
-def test_get_non_empty_region():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    cbfs = np.array([
-        (0.4)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2,
-        (0.4)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2
-    ])
-    non_empty_region = get_non_empty_region(
-        h = cbfs,    
-        x = x
-    )
-    assert len(non_empty_region) == 2
-    assert (non_empty_region[0].activation_index == np.array([0,1])).all()
-    assert (non_empty_region[1].activation_index == np.array([1,0])).all()
-

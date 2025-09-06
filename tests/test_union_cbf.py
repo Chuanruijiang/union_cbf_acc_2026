@@ -1,156 +1,136 @@
-import union_cbf_base.union_cbf as mut
+from union_cbf_base.union_cbf import UnionCbf
+from union_cbf_base.non_empty_subset import Subset
+import union_cbf_base.utils as utils
 import numpy as np
 from union_cbf_base.utils import Degree
 
 import pydrake.symbolic as sym
 
-
-def test_subset_empty_check():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    r = np.array([0.1, 0.3, 0.49, 0.5, 0.51, 0.6])
-    expected_results = [True, True, True, False, False, False]
-    for i in range(r.shape[0]):
-        h = np.array(
-            [
-                sym.Polynomial(-((x[0] - 0.5) ** 2 + x[1] ** 2 - r[i] ** 2)),
-                sym.Polynomial(-((x[0] + 0.5) ** 2 + x[1] ** 2 - r[i] ** 2)),
-            ]
-        )
-        subset = mut.UnionSubset(activated=h, deactivated=None, variables=x)
-
-        emptiness_lagragian_degrees = mut.EmptinessLagrangianDegrees(
-            activated=[Degree(x=2, y=0, c=0), Degree(x=2, y=0, c=0)], deactivated=None
-        )
-        result = subset.is_empty(
-            emptiness_lagrangian_degrees=emptiness_lagragian_degrees
-        )
-        assert result == expected_results[i]
-
-def test_getting_subset_from_01_vector():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    h = np.array(
-        [
-            sym.Polynomial(-((x[0] - 0.5) ** 2 + x[1] ** 2 - 0.5**2)),
-            sym.Polynomial(-((x[0] + 0.5) ** 2 + x[1] ** 2 - 0.5**2)),
-        ]
-    )
-    input = np.array([[0, 1], [1, 0], [1, 1]])
-    expected_activate_results = [
-        np.array([h[1]]),
-        np.array([h[0]]),
-        np.array([h[0], h[1]]),
-    ]
-    expected_deactivate_results = [
-        np.array([h[0]]),
-        np.array([h[1]]),
-        None,
-    ]
-    case = mut.ActivationIndicator(vecotor01=input)
-    results = case.to_union_subsets(polys=h, variables=x)
-    for i in range(input.shape[0]):
-        for j in range(results[i].activated.shape[0]):
-            assert results[i].activated[j].EqualTo(expected_activate_results[i][j])
-        if expected_deactivate_results[i] is not None:
-            for j in range(results[i].deactivated.shape[0]):
-                assert (
-                    results[i].deactivated[j].EqualTo(expected_deactivate_results[i][j])
-                )
-
-def test_empty_subset_check():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    radiuses = np.array([0.1, 0.2, 0.49, 0.5, 0.51, 0.6, 1.0])
-    expected_results = [
-        np.array([[0, 1], [1, 0]]),
-        np.array([[0, 1], [1, 0]]),
-        np.array([[0, 1], [1, 0]]),
-        np.array([[0, 1], [1, 0], [1, 1]]),
-        np.array([[0, 1], [1, 0], [1, 1]]),
-        np.array([[0, 1], [1, 0], [1, 1]]),
-        np.array([[0, 1], [1, 0], [1, 1]]),
-    ]
-    for i in range(radiuses.shape[0]):
-        h = np.array(
-            [
-                sym.Polynomial(
-                    radiuses[i] ** 2 - (x - np.array([0.5, 0])).dot(x - np.array([0.5, 0]))
-                    ),
-                sym.Polynomial(
-                    radiuses[i] ** 2 - (x - np.array([-0.5, 0])).dot(x - np.array([-0.5, 0]))
-                )
-            ]
-        )
-        union_cbf = mut.UnionCBF(h=h, x=x)
-        result = union_cbf.non_empty_disjoint_subsets(
-            lagragian_x_degrees=np.array([2, 2])
-        )
-        assert np.array_equal(result, expected_results[i])
-
-def test_empty_subset_outside_ball():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    radiuses = np.array([1.0])
-    r_ball = 0.1
-    ball_poly = sym.Polynomial(r_ball ** 2 - x.dot(x))
-    expected_results = [
-        np.array([[0, 1, 0], [1, 0, 0], [1, 1, 0]]),
-    ]
-    for i in range(radiuses.shape[0]):
-        h = np.array([
-            sym.Polynomial(radiuses[i] ** 2 - (x - np.array([0.5, 0])).dot(x - np.array([0.5, 0]))),
-            sym.Polynomial(radiuses[i] ** 2 - (x - np.array([-0.5, 0])).dot(x - np.array([-0.5, 0]))),
-        ])
-        union_cbf = mut.UnionCBF(h=h, x=x)
-        result = union_cbf.non_empty_disjoint_subsets(
-            outside_ball=True, ball_poly=ball_poly
-            )
-        assert np.array_equal(result, expected_results[i])
-
-def test_cbf_constraint_initialization():
+def test_get_non_empty_subsets():
     x = sym.MakeVectorContinuousVariable(2, "x")
     f = np.array([
-        sym.Polynomial(x[1]),
-        -sym.Polynomial(0),
+        sym.Polynomial(), sym.Polynomial()
     ])
     g = np.array([
-        [0],
-        [1]
+        [sym.Polynomial(1), sym.Polynomial(0)],
+        [sym.Polynomial(0), sym.Polynomial(1)]
     ])
-    # case 1:
-    h = sym.Polynomial(1 - x[0] - x[1])
-    kappa_h = 0.1
-    cbf_const = mut.CbfConstraint(
-        h=h,
-        f=f,
-        g=g,
-        x=x,
-        kappa=kappa_h,
-        relative_degree=None
+    A = np.array([
+        [sym.Polynomial(1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(1)], 
+        [sym.Polynomial(-1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(-1)]
+        ])
+    c = np.array([
+        sym.Polynomial(1), 
+        sym.Polynomial(1), 
+        sym.Polynomial(1), 
+        sym.Polynomial(1)
+        ])
+    cbfs = np.array([
+        sym.Polynomial((0.4)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2),
+        sym.Polynomial((0.4)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
+    ])
+    test_obj = UnionCbf(
+        x = x,
+        f = f,
+        g = g,
+        cbfs = cbfs,
+        alpha=0.1,
+        control_limits=(A, c)
     )
-    expected_lhs_coeff = np.array([sym.Polynomial(-1)])
-    expected_rhs = sym.Polynomial(-(-x[1]+kappa_h*h))
-    assert isinstance(cbf_const.lhs_coeff, np.ndarray)
-    assert cbf_const.lhs_coeff.shape[0] == expected_lhs_coeff.shape[0]
-    for i in range(expected_lhs_coeff.shape[0]):
-        assert cbf_const.lhs_coeff[i].EqualTo(expected_lhs_coeff[i])
-    assert cbf_const.rhs.EqualTo(expected_rhs)
+    activation_masks = test_obj.all_possible_subsets()
+    print(f"All possible subsets: {activation_masks}")
+    non_empty_subsets = test_obj.get_non_empty_subsets(
+        all_subsets_mask=activation_masks
+    )
+    assert (non_empty_subsets[0].activation_index == np.array([0, 1])).all()
+    assert (non_empty_subsets[1].activation_index == np.array([1, 0])).all()
 
-    # case 2:
-    h = sym.Polynomial(1 - x[0])
-    kappa_h = [0.1, 0.2]
-    relative_degree = 2
-    cbf_const = mut.CbfConstraint(
-        h=h,
-        f=f,
-        g=g,
-        x=x,
-        kappa=kappa_h,
-        relative_degree=relative_degree
+def test_compute_xi_lambda():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    f = np.array([
+        sym.Polynomial(0), sym.Polynomial(0)
+    ])
+    g = np.array([
+        [sym.Polynomial(1), sym.Polynomial(0)],
+        [sym.Polynomial(0), sym.Polynomial(1)]
+    ])
+    A = np.array([
+        [sym.Polynomial(1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(1)], 
+        [sym.Polynomial(-1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(-1)]
+    ])
+    c = np.array([
+        sym.Polynomial(1), 
+        sym.Polynomial(1), 
+        sym.Polynomial(1), 
+        sym.Polynomial(1)
+    ])
+    cbfs = np.array([
+        sym.Polynomial((0.6)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2),
+        sym.Polynomial((0.6)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
+    ])
+    alpha = 0.1
+    eta = 0.1
+    epsilon = 0.01
+    test_obj = UnionCbf(
+        x = x,
+        f = f,
+        g = g,
+        cbfs = cbfs,
+        alpha=alpha,
+        control_limits=(A, c)
     )
-    expected_rhs = sym.Polynomial(-((kappa_h[0]+kappa_h[1])*(-x[1]) + (kappa_h[0]*kappa_h[1])*h))
-    expected_lhs_coeff = np.array([sym.Polynomial(-1)])
-    assert isinstance(cbf_const.lhs_coeff, np.ndarray)
-    assert cbf_const.lhs_coeff.shape[0] == expected_lhs_coeff.shape[0]
-    for i in range(expected_lhs_coeff.shape[0]):
-        assert cbf_const.lhs_coeff[i].EqualTo(expected_lhs_coeff[i])
-    assert cbf_const.rhs.EqualTo(expected_rhs)
+    subset = Subset(
+        x=x,
+        cbfs=cbfs,
+        activation_index=np.array([1, 1])
+    )
+    (lambda_list, xi_list) = test_obj._lambda_xi(
+        subset=subset,
+        eta=eta,
+        epsilon=epsilon,
+    )
+
+    expected_lambda_list = [
+        np.array([
+            [sym.Polynomial(2*x[0] - 1), sym.Polynomial(2*x[1])],
+            [sym.Polynomial(1), sym.Polynomial(0)], 
+            [sym.Polynomial(0), sym.Polynomial(1)], 
+            [sym.Polynomial(-1), sym.Polynomial(0)], 
+            [sym.Polynomial(0), sym.Polynomial(-1)]
+        ]),
+        np.array([
+            [sym.Polynomial(2*x[0] + 1), sym.Polynomial(2*x[1])],
+            [sym.Polynomial(1), sym.Polynomial(0)], 
+            [sym.Polynomial(0), sym.Polynomial(1)], 
+            [sym.Polynomial(-1), sym.Polynomial(0)], 
+            [sym.Polynomial(0), sym.Polynomial(-1)]
+        ]),
+    ]
+    expected_xi_list = [
+        np.array([
+            test_obj.alpha * cbfs[0] - eta,
+            sym.Polynomial(1-epsilon), 
+            sym.Polynomial(1-epsilon), 
+            sym.Polynomial(1-epsilon), 
+            sym.Polynomial(1-epsilon)
+        ]),
+        np.array([
+            test_obj.alpha * cbfs[1] - eta,
+            sym.Polynomial(1-epsilon), 
+            sym.Polynomial(1-epsilon), 
+            sym.Polynomial(1-epsilon), 
+            sym.Polynomial(1-epsilon)
+        ]),
+    ]
+    assert len(lambda_list) == len(expected_lambda_list)
+    assert len(xi_list) == len(expected_xi_list)
+    assert len(lambda_list) == len(xi_list)
+    for i in range(len(lambda_list)):
+        utils.check_polynomial_arrays_equal(lambda_list[i], expected_lambda_list[i], tol=1e-8)
+        utils.check_polynomial_arrays_equal(xi_list[i], expected_xi_list[i], tol=1e-8)
 
     

@@ -45,50 +45,19 @@ def main():
         cbfs=cbfs,
         activation_index=np.array([1, 1])
     )
-    (lambda_list, xi_list) = test_obj._lambda_xi(
+    test_success = test_obj.check_feasibility_in_subset(
         subset=subset,
+        cbf_lagrangian_x_degree=2,
+        cbf_lagrangian_y_degree=2,
+        lambda_y_lagrangian_x_degree=2,
+        lambda_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_x_degree=2,
+        xi_y_lagrangian_y_degree=2,
         eta=eta,
         epsilon=epsilon,
     )
 
-    expected_lambda_list = [
-        np.array([
-            [sym.Polynomial(2*x[0] - 1), sym.Polynomial(2*x[1])],
-            [sym.Polynomial(1), sym.Polynomial(0)], 
-            [sym.Polynomial(0), sym.Polynomial(1)], 
-            [sym.Polynomial(-1), sym.Polynomial(0)], 
-            [sym.Polynomial(0), sym.Polynomial(-1)]
-        ]),
-        np.array([
-            [sym.Polynomial(2*x[0] + 1), sym.Polynomial(2*x[1])],
-            [sym.Polynomial(1), sym.Polynomial(0)], 
-            [sym.Polynomial(0), sym.Polynomial(1)], 
-            [sym.Polynomial(-1), sym.Polynomial(0)], 
-            [sym.Polynomial(0), sym.Polynomial(-1)]
-        ]),
-    ]
-    expected_xi_list = [
-        np.array([
-            test_obj.alpha * cbfs[0] - eta,
-            sym.Polynomial(1-epsilon), 
-            sym.Polynomial(1-epsilon), 
-            sym.Polynomial(1-epsilon), 
-            sym.Polynomial(1-epsilon)
-        ]),
-        np.array([
-            test_obj.alpha * cbfs[1] - eta,
-            sym.Polynomial(1-epsilon), 
-            sym.Polynomial(1-epsilon), 
-            sym.Polynomial(1-epsilon), 
-            sym.Polynomial(1-epsilon)
-        ]),
-    ]
-    assert len(lambda_list) == len(expected_lambda_list)
-    assert len(xi_list) == len(expected_xi_list)
-    assert len(lambda_list) == len(xi_list)
-    for i in range(len(lambda_list)):
-        utils.check_polynomial_arrays_equal(lambda_list[i], expected_lambda_list[i], tol=1e-8)
-        utils.check_polynomial_arrays_equal(xi_list[i], expected_xi_list[i], tol=1e-8)
+    assert test_success
 
 
 if __name__ == "__main__":

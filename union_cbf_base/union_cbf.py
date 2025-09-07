@@ -202,6 +202,7 @@ class SubsetFeasibilityLagrangianDegrees:
             prog=prog,
             x=x_set,
             y=y_sets[-1],  # y_set_all,
+            c=None,
             sos_type=sos_type,
             is_sos=True,
             degree=self.s0,
@@ -212,6 +213,7 @@ class SubsetFeasibilityLagrangianDegrees:
                 prog=prog,
                 x=x_set,
                 y=y_sets[i], # y_seti
+                c=None,
                 sos_type=sos_type,
                 is_sos=True,
                 degree=self.s_lambda_y[i],
@@ -224,6 +226,7 @@ class SubsetFeasibilityLagrangianDegrees:
                 prog=prog,
                 x=x_set,
                 y=y_sets[i], # y_seti
+                c=None,
                 sos_type=sos_type,
                 is_sos=False,
                 degree=self.q_xi_y[i],
@@ -663,20 +666,27 @@ class UnionCbf:
         """
         num_activated = int(np.sum(subset.activation_index))
         y_i_size = self.control_limits[0].shape[0] + 1
+        y_i_groups = []
         y_all = np.array([])
         y_sets = []
         y_squared_polys = []
         for i in range(num_activated):
             y_i = sym.MakeVectorContinuousVariable(
                 y_i_size, f"y_{i+1}")
-            y_i_set = sym.Variables(y_i)
-            y_sets.append(y_i_set)
+            y_i_groups.append(y_i)
             y_squared_poly_i = np.array([
-                sym.Polynomial(sym.Monomial(self.y_i[j], 2)) 
+                sym.Polynomial(sym.Monomial(y_i[j], 2)) 
                 for j in range(y_i_size)
             ])
             y_squared_polys.append(y_squared_poly_i)
             y_all = np.hstack((y_all, y_i))
+        for i in range(num_activated):
+            y_i_groups_copy = y_i_groups.copy()
+            del y_i_groups_copy[i]
+            y_i_set = sym.Variables(
+                np.concatenate(y_i_groups_copy)
+            )
+            y_sets.append(y_i_set)
         y_all_set = sym.Variables(y_all)
         y_sets.append(y_all_set)
         x_set = sym.Variables(self.x)
@@ -703,12 +713,14 @@ class UnionCbf:
         assert len(y_squared_polys) == num_activated
         for i in range(num_activated):
             assert subset_lagrangian.lambda_y[i].shape[0] == self.n_u
-            assert lambda_list[i].shape[0] == self.n_u
-            assert subset_lagrangian.xi_y[i].shape == (1,)
-            assert xi_list[i].shape == (1,)
-            assert y_squared_polys[i].shape[0] == (
-                self.control_limits[0].shape[0] + 1
-            )
+            assert lambda_list[i].shape[1] == self.n_u
+            assert isinstance(subset_lagrangian.xi_y[i], sym.Polynomial)
+            assert xi_list[i].shape == (
+                self.control_limits[0].shape[0] + 1,
+                )
+            assert y_squared_polys[i].shape == (
+                self.control_limits[0].shape[0] + 1,
+                )
 
         # construct the sos constraint
         poly_constraint = sym.Polynomial(-1)
@@ -721,7 +733,7 @@ class UnionCbf:
             if num_activated < self.n_h
             else subset.cbfs
         )
-        poly_constraint -= sym.dot(
+        poly_constraint -= np.dot(
             subset_lagrangian.cbfs,
             cbf_vector
         )

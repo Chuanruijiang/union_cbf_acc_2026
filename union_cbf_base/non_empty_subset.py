@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 from typing_extensions import Self
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym

@@ -245,6 +245,17 @@ def test_construct_x_y_sets():
         for each_element in each_y_squared_poly:
             assert isinstance(each_element, sym.Polynomial)
 
+    test_subset = Subset(x=x, cbfs=cbfs, activation_index=np.array([1, 0, 0]))
+    num_activated = 1
+    test_xy_sets = test_obj._construct_x_y_sets(subset=test_subset)
+    assert isinstance(test_xy_sets[2], list)
+    assert len(test_xy_sets[2]) == num_activated + 1
+    assert test_xy_sets[2][0] is None
+    assert isinstance(test_xy_sets[2][-1], sym.Variables)
+    assert len(test_xy_sets[2][-1]) == (
+        (test_obj.control_limits[0].shape[0])+1
+        ) * num_activated
+
 def test_check_feasibility_in_subset():
     x = sym.MakeVectorContinuousVariable(2, "x")
     f = np.array([
@@ -271,7 +282,7 @@ def test_check_feasibility_in_subset():
         sym.Polynomial((0.6)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
     ])
     alpha = 0.1
-    eta = 0.1
+    eta = 1e-2
     epsilon = 0.01
     test_obj = UnionCbf(
         x = x,
@@ -284,7 +295,7 @@ def test_check_feasibility_in_subset():
     subset = Subset(
         x=x,
         cbfs=cbfs,
-        activation_index=np.array([1, 1])
+        activation_index=np.array([1, 0])
     )
     test_success = test_obj.check_feasibility_in_subset(
         subset=subset,
@@ -300,7 +311,53 @@ def test_check_feasibility_in_subset():
 
     assert test_success
 
+def test_check_simplified_feasibility():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    f = np.array([
+        sym.Polynomial(0), sym.Polynomial(0)
+    ])
+    g = np.array([
+        [sym.Polynomial(1), sym.Polynomial(0)],
+        [sym.Polynomial(0), sym.Polynomial(1)]
+    ])
+    A = np.array([
+        [sym.Polynomial(1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(1)], 
+        [sym.Polynomial(-1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(-1)]
+    ])
+    c = np.array([
+        sym.Polynomial(1), 
+        sym.Polynomial(1), 
+        sym.Polynomial(1), 
+        sym.Polynomial(1)
+    ])
+    cbfs = np.array([
+        sym.Polynomial((0.6)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2),
+        sym.Polynomial((0.6)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
+    ])
+    alpha = 0.1
+    eta = 1e-2
+    epsilon = 0.01
+    test_obj = UnionCbf(
+        x = x,
+        f = f,
+        g = g,
+        cbfs = cbfs,
+        alpha=alpha,
+        control_limits=(A, c)
+    )
+    test_success = test_obj.check_simplified_feasibility(
+        cbf_index=0,
+        cbf_lagrangian_x_degree=2,
+        cbf_lagrangian_y_degree=2,
+        lambda_y_lagrangian_x_degree=2,
+        lambda_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_x_degree=2,
+        xi_y_lagrangian_y_degree=2,
+        eta=eta,
+        epsilon=epsilon,
+    )
 
-
-
+    assert test_success
 

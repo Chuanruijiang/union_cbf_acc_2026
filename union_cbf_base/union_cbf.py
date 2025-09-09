@@ -195,6 +195,11 @@ class SubsetFeasibilityLagrangianDegrees:
         where y_seti is the set of x and y_i variables, and
         y_set_all is the set of x and all y variables.
 
+        However, if the subset only has one activated CBF, then
+        the y_sets should be [y_set1, y_set_all], where y_set1
+        is none since the s_lambda_y and q_xi_y lagrangians in 
+        this case will not need to inlcude any y variables.
+
         Note that all the number-of-dimension requirements should
         be checked before calling this function.
         """
@@ -215,7 +220,7 @@ class SubsetFeasibilityLagrangianDegrees:
                 y=y_sets[i], # y_seti
                 c=None,
                 sos_type=sos_type,
-                is_sos=True,
+                is_sos=False,
                 degree=self.s_lambda_y[i],
                 lagrangian=(None if lagrangian_lambda_y is None
                             else lagrangian_lambda_y[i])
@@ -457,13 +462,13 @@ class UnionCbf:
         All the defined lagragian degree and lagrangian classes can still
         be used for this verification. Looking back at the text at the top,
         we can see that this verification is a special case where the
-        subset is in the form S-N = {x|h_i(x) ≥ 0}, i.e., there is only
+        subset is in the form S_N = {x|h_i(x) ≥ 0}, i.e., the subset has only
         one activated CBF and no deactivated CBF.
         """
         assert cbf_index >= 0 and cbf_index < self.n_h
         subset = Subset(
             x=self.x,
-            cbfs = self.cbfs[cbf_index],
+            cbfs = np.array([self.cbfs[cbf_index]]),
             activation_index=np.array([1])
         )
         return self.check_feasibility_in_subset(
@@ -503,9 +508,15 @@ class UnionCbf:
             lagrangian_deact_c_degree=0,
             sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         )
+        print("The following subsets are non-empty:")
+        for subset in non_empty_subsets:
+            print(subset.activation_index)
+        print(f"In total, there are {len(non_empty_subsets)} non-empty subsets.")
         # 3. check the feasibility of all the non-empty subsets
         all_feasible = True
         for subset in non_empty_subsets:
+            assert subset.cbfs.shape[0] == self.n_h
+            assert np.sum(subset.activation_index) > 0
             is_feasible = self.check_feasibility_in_subset(
                 subset=subset,
                 cbf_lagrangian_x_degree=cbf_lagrangian_x_degree,
@@ -520,6 +531,9 @@ class UnionCbf:
             if not is_feasible:
                 all_feasible = False
                 print("The following subset is found to be infeasible:")
+                print(subset.activation_index)
+            else:
+                print("The following subset is verified to be feasible:")
                 print(subset.activation_index)
         return all_feasible
 
@@ -553,6 +567,8 @@ class UnionCbf:
             if not is_feasible:
                 verification_succeeded = False
                 print(f"The CBF with index {i} fails the verification.")
+            else:
+                print(f"The CBF with index {i} passes the verification.")
         return verification_succeeded
 
     def _lambda_xi(
@@ -567,7 +583,7 @@ class UnionCbf:
         For the output, the fisrt term is the list of lambda matrices,
         the second term is the list of xi vectors.
         """
-        activated_cbfs = self.cbfs[subset.activation_index==1]
+        activated_cbfs = subset.cbfs[subset.activation_index==1]
         lambda_list = []
         xi_list = []
         for h in activated_cbfs:
@@ -614,13 +630,14 @@ class UnionCbf:
                 x=cbf_lagrangian_x_degree,
                 y=cbf_lagrangian_y_degree,
                 c=0
-            ) for _ in range(self.n_h)
+            ) for _ in range(subset.cbfs.shape[0])
         ]
         s_lambda_y_degree = [
             [
                 Degree(
                     x=lambda_y_lagrangian_x_degree,
-                    y=lambda_y_lagrangian_y_degree,
+                    y=(lambda_y_lagrangian_y_degree
+                       if num_activated > 1 else 0),
                     c=0
                 ) for _ in range(self.n_u)
             ]
@@ -629,7 +646,8 @@ class UnionCbf:
         q_xi_y_degree = [
             Degree(
                 x=xi_y_lagrangian_x_degree,
-                y=xi_y_lagrangian_y_degree,
+                y=(xi_y_lagrangian_y_degree
+                   if num_activated > 1 else 0),
                 c=0
             ) for _ in range(num_activated)
         ]
@@ -680,14 +698,19 @@ class UnionCbf:
             ])
             y_squared_polys.append(y_squared_poly_i)
             y_all = np.hstack((y_all, y_i))
-        for i in range(num_activated):
-            y_i_groups_copy = y_i_groups.copy()
-            del y_i_groups_copy[i]
-            y_i_set = sym.Variables(
-                np.concatenate(y_i_groups_copy)
-            )
-            y_sets.append(y_i_set)
         y_all_set = sym.Variables(y_all)
+        if num_activated == 1:
+            y_sets.append(None)
+        elif num_activated > 1:   
+            for i in range(num_activated):
+                y_i_groups_copy = y_i_groups.copy()
+                del y_i_groups_copy[i]
+                y_i_set = sym.Variables(
+                    np.concatenate(y_i_groups_copy)
+                )
+                y_sets.append(y_i_set)
+        else:
+            raise RuntimeError("The subset should have at least one activated CBF.")
         y_sets.append(y_all_set)
         x_set = sym.Variables(self.x)
         xy = np.hstack((self.x, y_all))
@@ -703,6 +726,7 @@ class UnionCbf:
         lambda_list: List[np.ndarray],
         xi_list: List[np.ndarray],
         y_squared_polys: List[np.ndarray],
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         ):
         # basic checks:
         num_activated = int(np.sum(subset.activation_index))
@@ -723,14 +747,15 @@ class UnionCbf:
                 )
 
         # construct the sos constraint
-        poly_constraint = sym.Polynomial(-1)
+        poly_one = sym.Polynomial(sym.Monomial())
+        poly_constraint = -poly_one
         # the s0 term
         cbf_vector = (
             np.hstack((
             subset.cbfs[subset.activation_index==1],
             -subset.cbfs[subset.activation_index==0]
              ))
-            if num_activated < self.n_h
+            if num_activated < subset.cbfs.shape[0]
             else subset.cbfs
         )
         poly_constraint -= np.dot(
@@ -739,17 +764,18 @@ class UnionCbf:
         )
         # the s_lambda_y terms
         for i in range(num_activated):
-            poly_constraint -= (
-                subset_lagrangian.lambda_y[i].T @ (
-                    lambda_list[i].T @ y_squared_polys[i])
-                    )
+            lambda_y_term = lambda_list[i].T @ y_squared_polys[i]
+            poly_constraint -= np.dot(
+                subset_lagrangian.lambda_y[i],
+                lambda_y_term
+                )
         # the q_xi_y terms
         for i in range(num_activated):
+            xi_y_term = xi_list[i].T @ y_squared_polys[i] + 1
             poly_constraint -= (
-                subset_lagrangian.xi_y[i] * (
-                    xi_list[i].T @ y_squared_polys[i] + 1)
-                    )
+                subset_lagrangian.xi_y[i] * (xi_y_term)
+                )
         # add the sos constraint to the program
-        prog.AddSosConstraint(poly_constraint)
+        prog.AddSosConstraint(poly_constraint, sos_type)
 
     

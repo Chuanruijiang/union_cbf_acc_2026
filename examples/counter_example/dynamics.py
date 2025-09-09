@@ -40,6 +40,16 @@ def control_limits() -> Tuple[np.ndarray, np.ndarray]:
     u1_max = 20
     u2_min = -20
     u2_max = 20
-    Au = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
-    bu = np.array([u1_max, -u1_min, u2_max, -u2_min])
+    Au = np.array([
+        [sym.Polynomial(1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(1)], 
+        [sym.Polynomial(-1), sym.Polynomial(0)], 
+        [sym.Polynomial(0), sym.Polynomial(-1)]
+    ])
+    bu = np.array([
+        sym.Polynomial(u1_max), 
+        sym.Polynomial(u2_max), 
+        sym.Polynomial(-u1_min), 
+        sym.Polynomial(-u2_min)
+    ])
     return Au, bu

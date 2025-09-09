@@ -30,7 +30,7 @@ def main():
         sym.Polynomial((0.6)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
     ])
     alpha = 0.1
-    eta = 0.1
+    eta = 1e-2
     epsilon = 0.01
     test_obj = UnionCbf(
         x = x,
@@ -40,19 +40,14 @@ def main():
         alpha=alpha,
         control_limits=(A, c)
     )
-    subset = Subset(
-        x=x,
-        cbfs=cbfs,
-        activation_index=np.array([1, 1])
-    )
-    test_success = test_obj.check_feasibility_in_subset(
-        subset=subset,
+    test_success = test_obj.check_simplified_feasibility(
+        cbf_index=0,
         cbf_lagrangian_x_degree=2,
         cbf_lagrangian_y_degree=2,
         lambda_y_lagrangian_x_degree=2,
-        lambda_y_lagrangian_y_degree=2,
+        lambda_y_lagrangian_y_degree=0,
         xi_y_lagrangian_x_degree=2,
-        xi_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_y_degree=0,
         eta=eta,
         epsilon=epsilon,
     )

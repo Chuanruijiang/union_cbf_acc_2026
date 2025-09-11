@@ -63,10 +63,6 @@ def main():
     assert verfication_thm3 == True
     print("The verification of therorem 3 is successful!")
 
-    
-
-    
-
 
 if __name__ == "__main__":
     main()

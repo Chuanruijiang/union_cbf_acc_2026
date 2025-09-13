@@ -262,11 +262,6 @@ class UnionCbf:
         assert f.shape[0] == x.shape[0]
         assert g.shape[0] == x.shape[0]
         assert control_limits[0].shape[0] == control_limits[1].shape[0]
-        # although A and c are control input limits presented by constants,
-        # we should also encode them as polynomials to be consistent with
-        # Lfh and Lgh when computing Lambda and xi.
-        assert isinstance(control_limits[0][0][0], sym.Polynomial)
-        assert isinstance(control_limits[1][0], sym.Polynomial)
         assert g.shape[1] == control_limits[0].shape[1]
 
         self.x = x

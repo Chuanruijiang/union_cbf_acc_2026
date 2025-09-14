@@ -1,4 +1,7 @@
 import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+
 import numpy as np
 from typing import Optional, Tuple, List, Union
 
@@ -9,7 +12,6 @@ import matplotlib.pyplot as plt
 import pydrake.symbolic as sym
 import pydrake.systems.analysis
 from pydrake.systems.framework import Diagram, DiagramBuilder
-import pydrake.systems.framework
 from pydrake.systems.primitives import LogVectorOutput, VectorLogSink
 
 from plant import SingleIntegratorPlant
@@ -45,7 +47,7 @@ def build_diagram()->Tuple[
         alpha=0.5,
         control_limits=plant_obj.control_limits(),
         waypoints=env_setup.waypoints,
-        switching_policy_id=2,
+        switching_policy_id=1,
         solver_id=None,
         solver_options=None
     ))
@@ -109,10 +111,11 @@ def run_simulation():
     ax = fig.add_subplot()
 
     (state_data, action_data, time_data) = simulate(x0=x0, duration=duration)
-    print("state data shape:", state_data.shape)
+    ax.plot(state_data[0, :], state_data[1, :], label="trajectory", color="blue")
     
     
 def main():
+    print(os.path.dirname(__file__))
     run_simulation()
 
 if __name__ == "__main__":

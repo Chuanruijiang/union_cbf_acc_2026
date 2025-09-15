@@ -6,6 +6,8 @@ import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 
+import time
+
 from union_cbf_base.utils import (
     truth_table,
     get_polynomial_result,
@@ -512,6 +514,7 @@ class UnionCbf:
         for subset in non_empty_subsets:
             assert subset.cbfs.shape[0] == self.n_h
             assert np.sum(subset.activation_index) > 0
+            start_time = time.time()
             is_feasible = self.check_feasibility_in_subset(
                 subset=subset,
                 cbf_lagrangian_x_degree=cbf_lagrangian_x_degree,
@@ -523,6 +526,7 @@ class UnionCbf:
                 eta=eta,
                 epsilon=epsilon
             )
+            end_time = time.time()
             if not is_feasible:
                 all_feasible = False
                 print("The following subset is found to be infeasible:")
@@ -530,6 +534,7 @@ class UnionCbf:
             else:
                 print("The following subset is verified to be feasible:")
                 print(subset.activation_index)
+                print(f"Time taken: {end_time - start_time} seconds")
         return all_feasible
 
     def verification_of_theorem_3(

@@ -5,8 +5,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 import numpy as np
 from typing import Optional, Tuple, List, Union
 
-import matplotlib.axes
-import matplotlib.contour
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 

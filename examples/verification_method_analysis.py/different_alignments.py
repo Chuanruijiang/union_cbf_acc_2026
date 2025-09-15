@@ -1,0 +1,198 @@
+"""
+In this script, we wanted to show that the verification of
+switching condition 1 is sensitive to the alignments of the
+CBFs. 
+
+We first consider three circles aligned in a sparse manner
+such that ovelapping only exisists between two consecutive
+circles. In this case, we have three cirlces with centers:
+(-3, 0), (0, 0), (3, 0) and radius 2.
+
+Then, we consider a denser alignment where the three circles
+has a common overlapping region. In this case, we have three
+circles centered at each vertex of an equilateral triangle
+with side length 2 and radius 2. The centers are:
+(-1, 0), (1, 0), (0, sqrt(3)).
+
+We compare the verification time for both cases.
+"""
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+
+import time
+import numpy as np
+from typing import Tuple, Optional, Union
+
+import pydrake.symbolic as sym
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+from union_cbf_base.non_empty_subset import Subset
+from union_cbf_base.union_cbf import UnionCbf
+from examples.trajectory_tracking import plant
+
+def sparse_cbf_example(
+        x: Optional[np.ndarray] = None
+) -> Union[
+    np.ndarray,
+    Tuple[np.ndarray, float]
+]:
+    """ Create three sparse aligned circles as CBFs.
+
+    The three circles are centered at (-3, 0), (0, 0), (3, 0)
+    with radius 2.
+
+    Args:
+        x: The state variable, a 2D vector.
+
+    Returns:
+        A numpy array of shape (3,) representing the three CBFs.
+    """
+    if x is not None and (x.shape == (2,)):
+        cbf1 = sym.Polynomial(2**2 - (x[0] + 3)**2 - x[1]**2)
+        cbf2 = sym.Polynomial(2**2 - x[0]**2 - x[1]**2)
+        cbf3 = sym.Polynomial(2**2 - (x[0] - 3)**2 - x[1]**2)
+        return np.array([cbf1, cbf2, cbf3])
+    else:
+        centers = np.array([[-3, 0], [0, 0], [3, 0]])
+        radius = 2
+        return (centers, radius)
+
+def dense_cbf_example(
+        x:Optional[np.ndarray] = None
+) -> Union[
+    np.ndarray,
+    Tuple[np.ndarray, float]
+]:
+    """ Create three densely aligned circles as CBFs.
+
+    The three circles are centered at (-1, 0), (1, 0), (0, sqrt(3))
+    with radius 2.
+
+    Args:
+        x: The state variable, a 2D vector.
+
+    Returns:
+        A numpy array of shape (3,) representing the three CBFs.
+    """
+    if x is not None and (x.shape == (2,)):
+        cbf1 = sym.Polynomial(2**2 - (x[0] + 1)**2 - x[1]**2)
+        cbf2 = sym.Polynomial(2**2 - (x[0] - 1)**2 - x[1]**2)
+        cbf3 = sym.Polynomial(2**2 - x[0]**2 - (x[1] - np.sqrt(3))**2)
+        return np.array([cbf1, cbf2, cbf3])
+    else:
+        centers = np.array([[-1, 0], [1, 0], [0, np.sqrt(3)]])
+        radius = 2
+        return (centers, radius)
+
+def plot_examples():
+
+    (sparse_centers, sparse_radius) = sparse_cbf_example()
+    (dense_centers, dense_radius) = dense_cbf_example()
+    """
+    Plot the the examples above for visualization. 
+    """
+    fig, axs = plt.subplots(2, 1, figsize=(5, 10))
+
+    # Plot sparse example
+    for each_center in sparse_centers:
+        circle = patches.Circle(
+            xy=each_center,
+            radius=sparse_radius,
+            edgecolor='green',
+            facecolor='green',
+            linestyle='-',
+            alpha=0.3
+            )
+        axs[0].add_patch(circle)
+
+    # Plot dense example
+    for each_center in dense_centers:
+        circle = patches.Circle(
+            xy=each_center,
+            radius=dense_radius,
+            edgecolor='green',
+            facecolor='green',
+            linestyle='-',
+            alpha=0.3
+            )
+        axs[1].add_patch(circle)
+
+    axs[0].set_title("Sparse Alignment of CBFs")
+    axs[0].set_xlim(-6, 6)
+    axs[0].set_ylim(-3, 3)
+    axs[1].set_title("Dense Alignment of CBFs")
+    axs[1].set_xlim(-4, 4)
+    axs[1].set_ylim(-3, 4)
+
+def verification_sparse():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    single_integrator = plant.SingleIntegratorPlant()
+    f, g = single_integrator.affine_dynamics(x)
+    A, c = single_integrator.control_limits()
+    cbfs = sparse_cbf_example(x)
+    union_object = UnionCbf(
+        x=x,
+        f=f,
+        g=g,
+        cbfs=cbfs,
+        alpha=0.1,
+        control_limits=(A, c),
+    )
+
+    start_time = time.time()
+    verfication_thm2 = union_object.verification_of_theorem_2(
+        cbf_lagrangian_x_degree=2,
+        cbf_lagrangian_y_degree=2,
+        lambda_y_lagrangian_x_degree=2,
+        lambda_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_x_degree=2,
+        xi_y_lagrangian_y_degree=2,
+        eta=1e-3,
+        epsilon=0.01,
+    )
+    end_time = time.time()
+    assert verfication_thm2 == True
+    print("The verification of therorem 2 for sparse alignment is successful!")
+    print(f"Time taken: {end_time - start_time} seconds")
+
+def verification_dense():
+    x = sym.MakeVectorContinuousVariable(2, "x")
+    single_integrator = plant.SingleIntegratorPlant()
+    f, g = single_integrator.affine_dynamics(x)
+    A, c = single_integrator.control_limits()
+    cbfs = dense_cbf_example(x)
+    union_object = UnionCbf(
+        x=x,
+        f=f,
+        g=g,
+        cbfs=cbfs,
+        alpha=0.1,
+        control_limits=(A, c),
+    )
+
+    start_time = time.time()
+    verfication_thm2 = union_object.verification_of_theorem_2(
+        cbf_lagrangian_x_degree=2,
+        cbf_lagrangian_y_degree=2,
+        lambda_y_lagrangian_x_degree=2,
+        lambda_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_x_degree=2,
+        xi_y_lagrangian_y_degree=2,
+        eta=1e-3,
+        epsilon=0.01,
+    )
+    end_time = time.time()
+
+    assert verfication_thm2 == True
+    print("The verification of therorem 2 for dense alignment is successful!")
+    print(f"Time taken: {end_time - start_time} seconds")
+
+def main():
+    verification_sparse()
+    verification_dense()
+
+if __name__ == "__main__":
+    main()

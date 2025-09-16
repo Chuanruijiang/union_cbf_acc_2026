@@ -18,6 +18,8 @@ import pickle
 
 import pydrake.symbolic as sym
 
+import matplotlib.pyplot as plt
+
 from union_cbf_base.non_empty_subset import Subset
 from union_cbf_base.union_cbf import UnionCbf
 from plant import SingleIntegratorPlant
@@ -157,7 +159,13 @@ def verify_union_cbf_thm2(
 
     return thm2_time
 
-def verify_all(save_data: bool) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def verify_all(
+    save_data: bool
+) -> Optional[Tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray
+    ]]:
     setup = ExperimentSetup()
     number_of_all_cbfs = setup.waypoints.shape[0]
     cbf_num_axis = np.arange(1, number_of_all_cbfs+1)
@@ -179,9 +187,41 @@ def verify_all(save_data: bool) -> Optional[Tuple[np.ndarray, np.ndarray, np.nda
 
     return cbf_num_axis, thm2_times, thm3_times
 
-def main():
-    verify_all(save_data=True)
+def plot_computation_time_comparison():
+    # Load with pickle
+    with open('examples/trajectory_tracking/arrays.pkl', 'rb') as f:
+        data = pickle.load(f)
 
+    thm2_computation_times = data['thm2_times']
+    thm3_computation_times = data['thm3_times']
+    cbf_num_axis = data['cbf_num_axis']
+
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.plot(
+        cbf_num_axis,
+        thm2_computation_times,
+        marker='o',
+        linestyle='--',
+        color='blue',
+        label='Verification Time Theorem 2'
+    )
+    ax.plot(
+        cbf_num_axis,
+        thm3_computation_times,
+        marker='s',
+        linestyle='-',
+        color='orange',
+        label='Verification Time Theorem 3'
+    )
+    ax.set_xlabel('Number of CBFs')
+    ax.set_ylabel('Computation Time (seconds)')
+    ax.set_title('Verification Time vs Number of CBFs')
+    ax.legend()
+
+
+def main():
+    plot_computation_time_comparison()
     
 
 

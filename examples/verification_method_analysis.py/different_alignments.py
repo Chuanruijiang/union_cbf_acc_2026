@@ -51,9 +51,9 @@ def sparse_cbf_example(
         A numpy array of shape (3,) representing the three CBFs.
     """
     if x is not None and (x.shape == (2,)):
-        cbf1 = sym.Polynomial(2**2 - (x[0] + 3)**2 - x[1]**2)
-        cbf2 = sym.Polynomial(2**2 - x[0]**2 - x[1]**2)
-        cbf3 = sym.Polynomial(2**2 - (x[0] - 3)**2 - x[1]**2)
+        cbf1 = sym.Polynomial(2**2 - (x[0] + 3)**2 - (x[1] - 0)**2)
+        cbf2 = sym.Polynomial(2**2 - (x[0] - 0)**2 - (x[1] - 0)**2)
+        cbf3 = sym.Polynomial(2**2 - (x[0] - 3)**2 - (x[1] - 0)**2)
         return np.array([cbf1, cbf2, cbf3])
     else:
         centers = np.array([[-3, 0], [0, 0], [3, 0]])
@@ -78,9 +78,9 @@ def dense_cbf_example(
         A numpy array of shape (3,) representing the three CBFs.
     """
     if x is not None and (x.shape == (2,)):
-        cbf1 = sym.Polynomial(2**2 - (x[0] + 1)**2 - x[1]**2)
-        cbf2 = sym.Polynomial(2**2 - (x[0] - 1)**2 - x[1]**2)
-        cbf3 = sym.Polynomial(2**2 - x[0]**2 - (x[1] - np.sqrt(3))**2)
+        cbf1 = sym.Polynomial(2**2 - (x[0] + 1)**2 - (x[1] - 0)**2)
+        cbf2 = sym.Polynomial(2**2 - (x[0] - 1)**2 - (x[1] - 0)**2)
+        cbf3 = sym.Polynomial(2**2 - (x[0] - 0)**2 - (x[1] - np.sqrt(3))**2)
         return np.array([cbf1, cbf2, cbf3])
     else:
         centers = np.array([[-1, 0], [1, 0], [0, np.sqrt(3)]])
@@ -147,9 +147,9 @@ def verification_sparse():
         cbf_lagrangian_x_degree=2,
         cbf_lagrangian_y_degree=2,
         lambda_y_lagrangian_x_degree=2,
-        lambda_y_lagrangian_y_degree=2,
+        lambda_y_lagrangian_y_degree=0,
         xi_y_lagrangian_x_degree=2,
-        xi_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_y_degree=0,
         eta=1e-3,
         epsilon=0.01,
     )
@@ -178,9 +178,9 @@ def verification_dense():
         cbf_lagrangian_x_degree=2,
         cbf_lagrangian_y_degree=2,
         lambda_y_lagrangian_x_degree=2,
-        lambda_y_lagrangian_y_degree=2,
+        lambda_y_lagrangian_y_degree=0,
         xi_y_lagrangian_x_degree=2,
-        xi_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_y_degree=0,
         eta=1e-3,
         epsilon=0.01,
     )

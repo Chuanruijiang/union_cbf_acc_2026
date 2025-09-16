@@ -256,22 +256,28 @@ class UnionCbf:
         g: np.ndarray,
         cbfs: np.ndarray,
         alpha: float,
-        control_limits: Tuple[np.ndarray, np.ndarray]):
+        control_limits: Optional[Tuple[np.ndarray, np.ndarray]]):
         # basic checks
         assert isinstance(x, np.ndarray)
         assert isinstance(cbfs, np.ndarray)
         assert isinstance(cbfs[0], sym.Polynomial)
         assert f.shape[0] == x.shape[0]
         assert g.shape[0] == x.shape[0]
-        assert control_limits[0].shape[0] == control_limits[1].shape[0]
-        assert g.shape[1] == control_limits[0].shape[1]
-
+        
+        if control_limits is not None:
+            assert control_limits[0].shape[0] == control_limits[1].shape[0]
+            assert g.shape[1] == control_limits[0].shape[1]
+            self.control_limits = control_limits
+            self.xi_lambda_rows = control_limits[0].shape[0] + 1
+        else:
+            self.control_limits = None
+            self.xi_lambda_rows = 1
+        
         self.x = x
         self.f = f
         self.g = g
         self.cbfs = cbfs
         self.alpha = alpha
-        self.control_limits = control_limits
         self.n_x = x.shape[0]
         self.n_u = g.shape[1]
         self.n_h = cbfs.shape[0]
@@ -553,6 +559,7 @@ class UnionCbf:
         """
         verification_succeeded = True
         for i in range(self.n_h):
+            start_time = time.time()
             is_feasible = self.check_simplified_feasibility(
                 cbf_index=i,
                 cbf_lagrangian_x_degree=cbf_lagrangian_x_degree,
@@ -564,11 +571,13 @@ class UnionCbf:
                 eta=eta,
                 epsilon=epsilon
             )
+            end_time = time.time()
             if not is_feasible:
                 verification_succeeded = False
                 print(f"The CBF with index {i} fails the verification.")
             else:
                 print(f"The CBF with index {i} passes the verification.")
+                print(f"Time taken: {end_time - start_time} seconds")
         return verification_succeeded
 
     def _lambda_xi(
@@ -599,13 +608,20 @@ class UnionCbf:
                 variables=self.x,
                 pow=1
                 )
-            A = self.control_limits[0]
-            c = self.control_limits[1]
-            assert Lgh.shape[0] == self.n_u
-            assert Lgh.shape[0] == A.shape[1]
-            Lambda = np.vstack((-Lgh, A))
-            xi = np.hstack((Lfh + self.alpha*h - eta,
-                            c - epsilon))
+            if self.control_limits is not None:
+                A = self.control_limits[0]
+                c = self.control_limits[1]
+                assert Lgh.shape[0] == self.n_u
+                assert Lgh.shape[0] == A.shape[1]
+                Lambda = np.vstack((-Lgh, A))
+                xi = np.hstack((Lfh + self.alpha*h - eta,
+                                c - epsilon))
+            else:
+                Lambda = -Lgh.reshape((1, self.n_u))
+                xi = np.array([Lfh + self.alpha*h - eta])
+            assert Lambda.shape[0] == self.xi_lambda_rows
+            assert xi.shape[0] == self.xi_lambda_rows
+            
             lambda_list.append(Lambda)
             xi_list.append(xi)
         return lambda_list, xi_list
@@ -683,7 +699,7 @@ class UnionCbf:
             the SOS feasibility constraint.
         """
         num_activated = int(np.sum(subset.activation_index))
-        y_i_size = self.control_limits[0].shape[0] + 1
+        y_i_size = self.xi_lambda_rows
         y_i_groups = []
         y_all = np.array([])
         y_sets = []
@@ -739,12 +755,8 @@ class UnionCbf:
             assert subset_lagrangian.lambda_y[i].shape[0] == self.n_u
             assert lambda_list[i].shape[1] == self.n_u
             assert isinstance(subset_lagrangian.xi_y[i], sym.Polynomial)
-            assert xi_list[i].shape == (
-                self.control_limits[0].shape[0] + 1,
-                )
-            assert y_squared_polys[i].shape == (
-                self.control_limits[0].shape[0] + 1,
-                )
+            assert xi_list[i].shape == (self.xi_lambda_rows,)
+            assert y_squared_polys[i].shape == (self.xi_lambda_rows,)
 
         # construct the sos constraint
         poly_one = sym.Polynomial(sym.Monomial())

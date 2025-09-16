@@ -12,121 +12,6 @@ from union_cbf_base.utils import (
 )
 
 """
-The following contains the verification of the ball inclusion in the interior
-of a 0-super-level set of a polynomial function. We wanted to verify that:
-for all x in the ball B_r(0) = {xᵀx <= r}, h(x) > 0.
-This is equivalent to verifying that the set:
-{ x | xᵀx <= r, h(x) <= 0 }
-is empty. We can use the S-procedure to verify this. We can write the above
-
--1 - s_1(x) * (r - xᵀx) + s_2(x)h(x) is SOS 
-where s_1(x) and s_2(x) are SOS polynomials.
-"""
-
-
-@dataclass
-class BallInclusionLagrangian:
-    r_minus_xTx: sym.Polynomial
-    h: sym.Polynomial
-
-    def get_results(
-        self,
-        result: solvers.MathematicalProgramResult,
-        coefficient_tol: Optional[float],
-    ) -> Self:
-        r_minus_xTx_result = get_polynomial_result(
-            result, self.r_minus_xTx, coefficient_tol
-        )
-        h_result = get_polynomial_result(result, self.h, coefficient_tol)
-        return BallInclusionLagrangian(r_minus_xTx=r_minus_xTx_result, h=h_result)
-
-
-@dataclass
-class BallInclusionLagrangianDegree:
-    r_minus_xTx: Degree
-    h: Degree
-
-    def to_lagrangians(
-        self,
-        prog: solvers.MathematicalProgram,
-        x: sym.Variables,
-        *,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-        lagrangian_r_minus_xTx: Optional[sym.Polynomial] = None,
-        lagrangian_h: Optional[sym.Polynomial] = None,
-    ) -> BallInclusionLagrangian:
-        assert self.r_minus_xTx.y == 0
-        assert self.h.y == 0
-        r_minus_xTx = to_lagrangian_impl(
-            prog,
-            x,
-            y=None,
-            c=None,
-            sos_type=sos_type,
-            is_sos=True,
-            degree=self.r_minus_xTx,
-            lagrangian=lagrangian_r_minus_xTx,
-        )
-        h = to_lagrangian_impl(
-            prog,
-            x,
-            y=None,
-            c=None,
-            sos_type=sos_type,
-            is_sos=True,
-            degree=self.h,
-            lagrangian=lagrangian_h,
-        )
-        return BallInclusionLagrangian(r_minus_xTx=r_minus_xTx, h=h)
-
-
-class BallInclusion:
-    def __init__(self, radius: float, h: sym.Polynomial, x: np.ndarray):
-        self.radius = radius
-        self.h = h
-        self.x = x
-
-    def add_ball_inclusion_constraint(
-        self,
-        prog: solvers.MathematicalProgram,
-        ball_inclusion_lagrangian: BallInclusionLagrangian,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> sym.Polynomial:
-        x = self.x
-        r = self.radius
-        h = self.h
-        s1 = ball_inclusion_lagrangian.r_minus_xTx
-        s2 = ball_inclusion_lagrangian.h
-        poly = -1 - s1 * (r**2 - x.dot(x)) + s2 * h
-        prog.AddSosConstraint(poly, sos_type)
-        return poly
-
-    def verify_ball_inclusion(
-        self,
-        ball_x_degree: int,
-        h_x_degree: int,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> bool:
-        prog = solvers.MathematicalProgram()
-        x_set = sym.Variables(self.x)
-        prog.AddIndeterminates(x_set)
-
-        ball_inclusion_degree = BallInclusionLagrangianDegree(
-            r_minus_xTx=Degree(x=ball_x_degree, y=0, c=0),
-            h=Degree(x=h_x_degree, y=0, c=0),
-        )
-        ball_inclusion_lagrangian = ball_inclusion_degree.to_lagrangians(
-            prog, x_set, sos_type=sos_type
-        )
-
-        self.add_ball_inclusion_constraint(
-            prog, ball_inclusion_lagrangian, sos_type=sos_type
-        )
-        result = solve_with_id(prog)
-        return result.is_success()
-
-
-"""
 The following module creates SOS constraints for letting a 0-super-level set of a
 polynomial to include some specified points. Hence, given a set of sepcified points: 
 x_1,...,x_N. We would like to find the coefficients of the polynomial p(x) such that
@@ -172,7 +57,6 @@ the polynomial p(x) to be in the range [lower_bound, upper_bound]. We can write 
 following constraints:
 lower_bound <= p(x_j) <= upper_bound
 """
-
 
 @dataclass
 class PointsInclusionConstriants:
@@ -264,17 +148,16 @@ class PointsInclusionConstriants:
 The following module creates SOS constraints for excluding unsafe region
 presented by the intersection of 0-super-level sets of a collection of
 polynomial functions. Given a set of polynomial functions p₁(x), ..., pₙ(x)
-the unsafe region is the region: {x| p₁(x) => 0, ..., pₙ(x) => 0}.
+the unsafe region is the region: {x| p₁(x) ≤ 0, ..., pₙ(x) ≤ 0}.
 Now, assume we have a cbf h(x), we hope that: 
 for all x in the unsafe region, h(x) < 0.
 This is equivalent to verifying that the set:
-{x | p₁(x) => 0, ..., pₙ(x) => 0, h(x) >= 0}
+{x | -p₁(x) ≥ 0, ..., -pₙ(x) ≥ 0, h(x) ≥ 0}
 is empty. 
 Using P-satz, we have the following SOS constraint:
--1 - s₁(x) * p₁(x) - ... - sₙ(x) * pₙ(x) - s_{n+1}(x) * h(x) is SOS
+-1 + (∑ᵢ sᵢ(x)pᵢ(x)) - s_{n+1}(x) * h(x) is SOS
 where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
 """
-
 
 @dataclass
 class UnsafeRegionExclusionLagrangians:
@@ -348,11 +231,9 @@ class UnsafeExclusion:
         unsafe_exclusion_lagrangians: UnsafeRegionExclusionLagrangians,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> sym.Polynomial:
-        polys = self.unsafe_polys
         h = self.h
-        poly = -1
-        for i in range(polys.shape[0]):
-            poly -= unsafe_exclusion_lagrangians.unsafe_polys[i] * polys[i]
+        poly = -sym.Polynomial(1)
+        poly += unsafe_exclusion_lagrangians.unsafe_polys.dot(self.unsafe_polys)
         poly -= unsafe_exclusion_lagrangians.h * h
         prog.AddSosConstraint(poly, sos_type)
         return poly

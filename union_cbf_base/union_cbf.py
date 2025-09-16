@@ -580,6 +580,16 @@ class UnionCbf:
                 print(f"Time taken: {end_time - start_time} seconds")
         return verification_succeeded
 
+    def bilinear_alternation():
+        """
+        This function implements the bilinear alternation algorithm
+        to synthesize a single CBF. We define this function in the
+        union of CBFs class since single CBF is a special case of
+        union of CBFs. But since this function only synthesizes a
+        single CBF, then we should check the input at the first few
+        commands of this function.
+        """
+
     def _lambda_xi(
         self,
         subset: Subset,

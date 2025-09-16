@@ -41,7 +41,7 @@ class ExperimentSetup:
     def get_cbfs(self, x: np.ndarray) -> np.ndarray:
         assert x.shape == (2,)
         return np.array([
-            3.0**2 - (x[0] - each_point[0])**2 - (x[1] - each_point[1])**2
+            sym.Polynomial(3.0**2 - (x[0] - each_point[0])**2 - (x[1] - each_point[1])**2)
             for each_point in self.waypoints
         ])
     

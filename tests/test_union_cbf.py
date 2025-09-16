@@ -280,7 +280,8 @@ def test_check_feasibility_in_subset():
     cbfs = np.array([
         sym.Polynomial(2**2 - (x[0] + 3)**2 - (x[1] - 0)**2),
         sym.Polynomial(2**2 - (x[0] - 0)**2 - (x[1] - 0)**2),
-        sym.Polynomial(2**2 - (x[0] - 3)**2 - (x[1] - 0)**2)
+        sym.Polynomial(2**2 - (x[0] - 3)**2 - (x[1] - 0)**2),
+        sym.Polynomial(2**2 - (x[0] - 6)**2 - (x[1] - 0)**2)
     ])
     alpha = 0.1
     eta = 1e-2
@@ -296,7 +297,7 @@ def test_check_feasibility_in_subset():
     subset = Subset(
         x=x,
         cbfs=cbfs,
-        activation_index=np.array([1, 1, 0])
+        activation_index=np.array([1, 0, 0, 0])
     )
     test_success = test_obj.check_feasibility_in_subset(
         subset=subset,

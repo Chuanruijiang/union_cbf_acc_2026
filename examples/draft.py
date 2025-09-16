@@ -1,24 +1,27 @@
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+
 from union_cbf_base.union_cbf import UnionCbf
 from union_cbf_base.non_empty_subset import Subset
 import union_cbf_base.utils as utils
 import pydrake.symbolic as sym
 import numpy as np
 import pydrake.solvers as solvers
+import pickle
 
 def main():
     
-    prog = solvers.MathematicalProgram()
-    x = prog.NewContinuousVariables(2, "x")
-    A = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
-    b = np.array([0.5, 0.5, 0.5, 0.5])
-    cost = np.zeros(shape=(2,)).dot(x) + 2.0
-    prog.AddLinearCost(e=cost)
-    prog.AddLinearConstraint(
-        A=A, lb=np.full_like(b, -np.inf), ub=b, vars=x
-        )
-    result = solvers.Solve(prog)
-    assert result.is_success()
-    print("optimal cost:", result.get_optimal_cost())
+    num = 7
+    one_active_cbf = np.eye(num, dtype=int)
+    two_active_cbf = np.eye(num, dtype=int)
+    for i in range(num-1):
+        two_active_cbf[i, i+1] = 1
+    active_index_list = np.vstack((one_active_cbf, two_active_cbf[:-1, :]))
+    print(f"The active index list is:\n{active_index_list}")
+    assert active_index_list.shape[0] == num + (num - 1)
+
+
 
 
 if __name__ == "__main__":

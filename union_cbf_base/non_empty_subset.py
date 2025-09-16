@@ -234,9 +234,9 @@ class Subset:
         lagrangian_times_deactivated_cbf = sym.Polynomial(0)
         if lagrangian_degree.deactivated_cbf is not None:
             deactivated_cbfs = self.cbfs[self.activation_index == 0]
-            lagrangian_deactivated_cbf = lagrangians.deactivated_cbf.dot(
-                c_squared_poly * deactivated_cbfs
-            ) + 1
+            lagrangian_times_deactivated_cbf = lagrangians.deactivated_cbf.dot(
+                c_squared_poly * deactivated_cbfs + 1
+                )
         poly = (- sym.Polynomial(1)
                 - lagrangian_times_activated_cbf
                 - lagrangian_times_deactivated_cbf

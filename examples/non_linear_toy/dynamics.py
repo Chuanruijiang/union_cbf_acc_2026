@@ -84,7 +84,7 @@ class NonlinearToyPlant(drake_sys_frame.LeafSystem):
         self,
         x: np.array
     ) -> sym.Polynomial:
-        return sym.Polynomial(x[1]**2 + x[2]**2 + 2*x[2])
+        return np.array([sym.Polynomial(x[1]**2 + x[2]**2 + 2*x[2])])
 
     def control_limits(
         self
@@ -96,8 +96,8 @@ class NonlinearToyPlant(drake_sys_frame.LeafSystem):
         """
         u1_min = -0.5
         u1_max = 0.5
-        u2_min = -0.5
-        u2_max = 0.5
+        u2_min = -5
+        u2_max = 5
         Au = np.array([
             [1, 0],
             [0, 1],

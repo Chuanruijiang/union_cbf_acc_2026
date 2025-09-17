@@ -39,9 +39,9 @@ def main():
         cbf_lagrangian_x_degree=2,
         cbf_lagrangian_y_degree=2,
         lambda_y_lagrangian_x_degree=2,
-        lambda_y_lagrangian_y_degree=2,
+        lambda_y_lagrangian_y_degree=0,
         xi_y_lagrangian_x_degree=2,
-        xi_y_lagrangian_y_degree=2,
+        xi_y_lagrangian_y_degree=0,
         eta=1e-2,
         epsilon=0.01,
     )

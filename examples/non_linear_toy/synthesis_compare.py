@@ -20,18 +20,10 @@ from union_cbf_base.utils import(
     deserialize_polynomial,
     BackoffScale
 )
-from union_cbf_base.clf import(
-    ClfSynthesis
-)
-from union_cbf_base.union_cbf import(
-    UnionCbfSynthesisGivenClf
-)
-from dynamics import(
-    system_dynamics,
-    state_equation_constraint,
-    control_limits,
-    original_to_extended_state_space
-)
+
+from union_cbf_base.union_cbf import UnionCbf
+from union_cbf_base.non_empty_subset import Subset
+from dynamics import NonlinearToyPlant
 
 def get_pkl_file_path(
     name_file: str
@@ -81,137 +73,109 @@ def load_clf(pickle_path: str, x_set: sym.Variables) -> dict:
 def main():
     pi = np.pi
     x = sym.MakeVectorContinuousVariable(3, "x")
-    x_set = sym.Variables(x)
-    
-    data = load_clf(
-        pickle_path=get_pkl_file_path(
-            name_file="non_linear_toy_clf_init.pkl"
-        ),
-        x_set=x_set
-    )
-    V_init = data["V"]
-
-    f, g = system_dynamics(x)
-    state_eq_const = state_equation_constraint(x)
-
-    # (Au, bu) = control_limits(x)
-    (Au, bu) = None, None
+    system_obj = NonlinearToyPlant()
+    (f, g) = system_obj.affine_dynamics(x)
+    state_eq_const = system_obj.state_eq_constraint(x)
+    control_limits = system_obj.control_limits()
 
     # set parameters:
-    epsilon_0 = 0.1
-    rho = 1
-    kappaV = 0.05
-    kappa_diff = 0.01
-    kappah = [1.0, 1.0]
+    eta = 1e-3
+    epsilon = 0.01
+    alpha = 0.1
 
     # unsafe Region:
     unsafe_polys = np.array([
-        sym.Polynomial(-x[0] + 0.3),
-        sym.Polynomial(-x[1] + np.sin(-pi/4))
+        sym.Polynomial(x[0] - 0.3),
+        sym.Polynomial(x[1] - np.sin(-pi/4))
     ])
 
-    clf_synthesis = ClfSynthesis(
-        x=x,
-        sys_dyn_f=f,
-        sys_dyn_g=g,
-        Au=Au,
-        bu=bu,
-        state_eq_constraint=state_eq_const
-    )
+    # # define the points to be included in the γ, θ domain
+    # points_to_include_2d = np.array([
+    #     [-0.8, pi/4],
+    #     [-1.5, pi/4],
+    #     [-0.8, -pi/4.5],
+    #     [-1.1, -pi/4.5],
+    #     [0.5, -pi/3.5],
+    #     [0.5, -pi/3],
+    #     [1.5, -pi/3],
+    #     [0.9, -pi/3],
+    #     [0.9, pi/6],
+    #     [1.8, -pi/8],
+    #     [2, pi/2.5],
+    #     [-2, pi/8],
+    #     [0.9, pi/4],
+    #     [1.8, pi/6]
+    # ])
 
-    # define the points to be included in the γ, θ domain
-    points_to_include_2d = np.array([
-        [-0.8, pi/4],
-        [-1.5, pi/4],
-        [-0.8, -pi/4.5],
-        [-1.1, -pi/4.5],
-        [0.5, -pi/3.5],
-        [0.5, -pi/3],
-        [1.5, -pi/3],
-        [0.9, -pi/3],
-        [0.9, pi/6],
-        [1.8, -pi/8],
-        [2, pi/2.5],
-        [-2, pi/8],
-        [0.9, pi/4],
-        [1.8, pi/6]
+    # we manucally pick the following 1-degree CBFs to form the union:
+    cbfs = np.array([
+        sym.Polynomial(x[0] - 0.35),
+        sym.Polynomial(x[1] - np.sin(-pi/(4.5)))
     ])
-    points_to_include = original_to_extended_state_space(
-        input_points=points_to_include_2d
-        )
-    points_inlusion_weights = np.ones(points_to_include.shape[0])
-    
-    # synthesize the clf
-    V_result = clf_synthesis.bilinear_alternation(
-        clf_init=V_init,
-        rho=rho,
-        kappaV=kappaV+kappa_diff,
-        ball_radius=epsilon_0,
-        ball_inclusion_ball_x_degree=2,
-        ball_inclusion_h_x_degree=2,
-        clf_lagrangain_lambda_y_x_degree=[2, 2],
-        clf_lagrangain_xi_y_x_degree=2,
-        clf_lagrangain_rho_minus_V_x_degree=2,
-        V_x_degree=2,
-        included_points=points_to_include,
-        points_inclusion_weights=points_inlusion_weights,
-        state_eq_constraints_x_degree=[2],
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=20,
-        lagrangian_coeff_tol=1e-3,
-    )
-    assert V_result is not None
 
-    cbf_synthesis_given_clf = UnionCbfSynthesisGivenClf(
+    union_obj = UnionCbf(
         x=x,
-        sys_dyn_f=f,
-        sys_dyn_g=g,
-        clf=V_result,
-        rho=rho,
-        num_cbf=2,
+        f=f,
+        g=g,
+        cbfs=cbfs,
+        alpha=alpha,
+        control_limits=control_limits,
         unsafe_polys=unsafe_polys,
-        Au=Au,
-        bu=Au,
-        state_eq_constraints=state_eq_const,
-        kappaV=kappaV,
-        kappah=kappah,
-        epsilon_0=1e-6,
-        epsilon=1e-6,
-        cbf_x_degrees=[2, 2],
-        cbf_ball_inclusion_ball_x_degree=2,
-        cbf_ball_inclusion_cbf_x_degree=2,
-        compatible_lambda_y_x_degrees=[2, 2],
-        compatible_xi_y_x_degree=2,
-        compatible_rho_minus_V_x_degree=2,
-        compatible_deact_cbf_x_degree=[2],
-        compatible_h_x_degree=2,
-        state_eq_x_degrees=[2],
-        safety_h_x_degree=2,
-        safety_unsafe_polys_x_degree=[2, 2]
+        state_eq_const=state_eq_const,
+    )
+    cbf_valid = union_obj.validity_verification_of_all_cbfs(
+        unsafe_poly_lagrangian_x_degrees=[2]*unsafe_polys.shape[0],
+        cbf_lagrangian_x_degree=2
+    )
+    # union_feasible_thm2 = union_obj.verification_of_theorem_2(
+    #     cbf_lagrangian_x_degree=2,
+    #     cbf_lagrangian_y_degree=2,
+    #     lambda_y_lagrangian_x_degree=2,
+    #     lambda_y_lagrangian_y_degree=0,
+    #     xi_y_lagrangian_x_degree=2,
+    #     xi_y_lagrangian_y_degree=0,
+    #     eta=eta,
+    #     epsilon=epsilon,
+    #     state_eq_lagrangian_x_degree=2,
+    #     state_eq_lagrangian_y_degree=2
+    # )
+    subset_obj = Subset(
+        x=x,
+        cbfs=cbfs,
+        activation_index=np.array([0, 1])
+    )
+    check_subset = union_obj.check_feasibility_in_subset(
+        subset=subset_obj,
+        cbf_lagrangian_x_degree=2,
+        cbf_lagrangian_y_degree=2,
+        lambda_y_lagrangian_x_degree=2,
+        lambda_y_lagrangian_y_degree=0,
+        xi_y_lagrangian_x_degree=2,
+        xi_y_lagrangian_y_degree=0,
+        eta=eta,
+        epsilon=epsilon,
+        state_eq_lagrangian_x_degree=2,
+        state_eq_lagrangian_y_degree=2
+    )
+    assert check_subset, "The feasibility in the subset fails."
+    union_feasible_thm3 = union_obj.verification_of_theorem_3(
+        cbf_lagrangian_x_degree=2,
+        cbf_lagrangian_y_degree=2,
+        lambda_y_lagrangian_x_degree=2,
+        lambda_y_lagrangian_y_degree=0,
+        xi_y_lagrangian_x_degree=2,
+        xi_y_lagrangian_y_degree=0,
+        eta=eta,
+        epsilon=epsilon,
+        state_eq_lagrangian_x_degree=2,
+        state_eq_lagrangian_y_degree=2
     )
 
-    back_off_scales = [BackoffScale(rel=0.00, abs=None)] * 10
-    back_off_scales[8] = BackoffScale(rel=0.02, abs=None)
+    assert cbf_valid, "One of the CBFs fails the validity verification."
+    assert union_feasible_thm2, "The feasibility of theorem 2 fails."
+    assert union_feasible_thm3, "The feasibility of theorem 3 fails."
 
-    cbf_result = cbf_synthesis_given_clf.synthesis_first_cbf(
-        cbf_init=sym.Polynomial(0.01 - x.dot(x)),
-        points_to_include=points_to_include,
-        weights_to_include=points_inlusion_weights,
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=10,
-        back_off_scale=back_off_scales
 
-    )
-    assert cbf_result is not None
-
-    save_synthesis_results(
-        V_res=V_result,
-        h_res=np.array([cbf_result]),
-        x_set=x_set,
-        pickle_path=get_pkl_file_path("non_linear_toy_clf_single_cbf_synthesized.pkl")
-    )
 
 
 

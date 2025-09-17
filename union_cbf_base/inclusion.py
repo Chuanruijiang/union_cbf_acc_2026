@@ -229,6 +229,7 @@ class UnsafeExclusion:
         self,
         prog: solvers.MathematicalProgram,
         unsafe_exclusion_lagrangians: UnsafeRegionExclusionLagrangians,
+        *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> sym.Polynomial:
         h = self.h
@@ -242,8 +243,11 @@ class UnsafeExclusion:
         self,
         unsafe_poly_x_degrees: List[int],
         h_x_degree: int,
+        *,
+        output_lagrangians: bool = False,
+        coefficient_tol: Optional[float] = None,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> bool:
+    ) -> Union[bool, UnsafeRegionExclusionLagrangians]:
         assert len(unsafe_poly_x_degrees) == self.unsafe_polys.shape[0]
 
         prog = solvers.MathematicalProgram()
@@ -265,4 +269,59 @@ class UnsafeExclusion:
         )
 
         result = solve_with_id(prog)
-        return result.is_success()
+
+        if output_lagrangians:
+            assert result.is_success()
+            return unsafe_exclusion_lagrangians.get_results(
+                result=result,
+                coefficient_tol=coefficient_tol
+            )
+        else:
+            return result.is_success()
+
+    def add_exclusion_const_for_search_cbf(
+        self,
+        prog: solvers.MathematicalProgram,
+        x_set: sym.Variables,
+        unsafe_polys_lagrangian_x_degree: List[int],
+        solved_lagrangians: UnsafeRegionExclusionLagrangians,
+        *,
+        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+    ) -> UnsafeRegionExclusionLagrangians:
+        """
+        In the safety SOS constriant, only the h itself is h-related.
+        all the other unsafe polys are fixed during the CBF synthesis.
+        Hence, the lagrangian multipliers for unsafe polys should be
+        newly created unsolved lagrangians, and the lagrangian
+        multiplier for h should come from the verification computation
+        results.
+
+        if we call this function, then we need to make sure that self.h
+        is an unsolved CBF polynomial.
+        """
+        assert len(unsafe_polys_lagrangian_x_degree) \
+            == self.unsafe_polys.shape[0]
+        unsafe_exclusion_degree = UnsafeRegionExclusionLagrangianDegrees(
+            unsafe_polys=[
+                Degree(
+                    x=unsafe_polys_lagrangian_x_degree[i],
+                    y=0,
+                    c=0
+                    )
+                for i in range(self.unsafe_polys.shape[0])
+            ],
+            h=Degree(x=0, y=0, c=0),
+        )
+        unsafe_exclusion_lagrangians = unsafe_exclusion_degree.to_lagrangians(
+            prog,
+            x_set,
+            sos_type=sos_type,
+            unsafe_poly_lagrangians=None,
+            h_lagrangian=solved_lagrangians.h,
+        )
+        self.add_unsafe_exclusion_constraint(
+            prog,
+            unsafe_exclusion_lagrangians,
+            sos_type=sos_type
+        )
+        return unsafe_exclusion_lagrangians

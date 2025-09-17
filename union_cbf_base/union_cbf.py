@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from typing_extensions import Self
 
 import numpy as np
@@ -22,6 +22,12 @@ from union_cbf_base.utils import (
 
 from union_cbf_base.non_empty_subset import (
     Subset
+)
+
+from union_cbf_base.inclusion import(
+    UnsafeExclusion,
+    UnsafeRegionExclusionLagrangians,
+    PointsInclusionConstriants
 )
 
 """
@@ -85,6 +91,9 @@ let y = [y1; y2; y3], the above set is empty if:
     - q₂(x,y)(ξ₂(x)ᵀy₂² + 1) 
     - q₃(x,y)(ξ₃(x)ᵀy₃² + 1)
 where s0 is a vector of SOS, all the others are Polynomials.
+If we also have some state equation constraints in the state space of
+the system, then we will also have one more term (-p(x, y)ᵀeq(x)) in
+the SOS constraint above, where p(x, y) is a vector of polynomials
 
 Now, we summarize the number of SOS and polynomials that are needed to
 verify the subset S_N in the general case:
@@ -93,9 +102,11 @@ Assume we have N_h number of CBFs in total.
     m number of CBFs are deactivated in S_N (m+n=N_h)
     u is the control input with dimension n_u
 Then:
-    S_0: is an SOS vector with N_h elements.
+    s_0: is an SOS vector with N_h elements.
     there are n number of SOS vectors s_i, each with dimension n_u
     there are n number of polynomial q_i, each is a scalar polynomial.
+    if we also has l number of state equation constraints in the state
+    space, then p(x, y) is also a vector of l number of polynomials.
     The vector of y has dimension n*(n_u + 1)
     The vector of x has dimension n_x
 In total, the number of variables is:
@@ -115,6 +126,9 @@ class SubsetFeasibilityLagrangian:
     # the length of this list is equal to n. Each element in this list is a
     # scalar polynomial that presents the multiplier q_i. 
     xi_y: List[np.ndarray]
+    # an array of polynomuals if there are some state equation constraints
+    # in the state space.
+    state_eq: Optional[np.ndarray]
 
     def get_result(
         self,
@@ -140,10 +154,19 @@ class SubsetFeasibilityLagrangian:
                 coefficient_tol=coefficient_tol
             ) for xi_y in self.xi_y
         ]
-        return Self(
+        if self.state_eq is not None:
+            state_eq_result = get_polynomial_result(
+                result=result,
+                p=self.state_eq,
+                coefficient_tol=coefficient_tol
+            )
+        else:
+            state_eq_result = None
+        return SubsetFeasibilityLagrangian(
             cbfs=cbfs_result,
             lambda_y=lambda_y_result,
-            xi_y=xi_y_result
+            xi_y=xi_y_result,
+            state_eq=state_eq_result
         )
 
 
@@ -159,6 +182,10 @@ class SubsetFeasibilityLagrangianDegrees:
     # the length of the following list is equal to the number of
     # activated CBFs in the subset.
     q_xi_y: List[Degree]
+    # If there are state equation constraints in the state space, 
+    # then the length of the following list should be the number
+    # of equation constraints.
+    p_state_eq: Optional[List[Degree]]
     """
     Note that all the number-of-dimension requirements should
     be checked before the instantiation of this class.
@@ -173,6 +200,7 @@ class SubsetFeasibilityLagrangianDegrees:
         lagrangian_cbfs: Optional[np.ndarray] = None,
         lagrangian_lambda_y: Optional[List[np.ndarray]] = None,
         lagrangian_xi_y: Optional[List[np.ndarray]] = None,
+        lagrangian_state_eq: Optional[np.ndarray] = None,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ):
         """
@@ -241,10 +269,25 @@ class SubsetFeasibilityLagrangianDegrees:
                             else lagrangian_xi_y[i])
             ) for i in range(len(self.q_xi_y))
         ]
+        state_eq = (
+            to_lagrangian_impl(
+                prog=prog,
+                x=x_set,
+                y=y_sets[-1],  # y_set_all,
+                c=None,
+                sos_type=sos_type,
+                is_sos=False,
+                degree=self.p_state_eq,
+                lagrangian=lagrangian_state_eq
+            )
+            if self.p_state_eq is not None
+            else None
+        )
         return SubsetFeasibilityLagrangian(
             cbfs=cbfs,
             lambda_y=lambda_y,
-            xi_y=xi_y
+            xi_y=xi_y,
+            state_eq=state_eq
         )
 
 
@@ -256,13 +299,19 @@ class UnionCbf:
         g: np.ndarray,
         cbfs: np.ndarray,
         alpha: float,
-        control_limits: Optional[Tuple[np.ndarray, np.ndarray]]):
+        control_limits: Optional[Tuple[np.ndarray, np.ndarray]],
+        unsafe_polys: Optional[np.ndarray]=None,
+        state_eq_const: Optional[np.ndarray]=None,
+        ):
         # basic checks
         assert isinstance(x, np.ndarray)
         assert isinstance(cbfs, np.ndarray)
         assert isinstance(cbfs[0], sym.Polynomial)
         assert f.shape[0] == x.shape[0]
         assert g.shape[0] == x.shape[0]
+        if state_eq_const is not None:
+            assert isinstance(state_eq_const, np.ndarray)
+            assert len(state_eq_const.shape) == 1
         
         if control_limits is not None:
             assert control_limits[0].shape[0] == control_limits[1].shape[0]
@@ -273,6 +322,13 @@ class UnionCbf:
             self.control_limits = None
             self.xi_lambda_rows = 1
         
+        if unsafe_polys is not None:
+            assert isinstance(unsafe_polys, np.ndarray)
+            assert isinstance(unsafe_polys[0], sym.Polynomial)
+            self.unsafe_polys = unsafe_polys
+        else:
+            self.unsafe_polys = None
+
         self.x = x
         self.f = f
         self.g = g
@@ -281,6 +337,7 @@ class UnionCbf:
         self.n_x = x.shape[0]
         self.n_u = g.shape[1]
         self.n_h = cbfs.shape[0]
+        self.state_eq_const = state_eq_const
     
     def all_possible_subsets(
         self,
@@ -339,11 +396,17 @@ class UnionCbf:
         lambda_y_lagrangian_y_degree: int,
         xi_y_lagrangian_x_degree: int,
         xi_y_lagrangian_y_degree: int,
+        state_eq_lagrangian_x_degree: Optional[int],
+        state_eq_lagrangian_y_degree: Optional[int],
         eta: float,
         epsilon: float,
         *,
+        output_lagragians: bool = False,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> solvers.MathematicalProgram:
+    ) -> Union[
+            solvers.MathematicalProgram,
+            Tuple[solvers.MathematicalProgram, SubsetFeasibilityLagrangian]
+            ]:
         # 1. construct the lagrangian degrees
         lagrangian_degrees = self._construct_lagrangian_degrees(
             subset=subset,
@@ -352,7 +415,9 @@ class UnionCbf:
             lambda_y_lagrangian_x_degree=lambda_y_lagrangian_x_degree,
             lambda_y_lagrangian_y_degree=lambda_y_lagrangian_y_degree,
             xi_y_lagrangian_x_degree=xi_y_lagrangian_x_degree,
-            xi_y_lagrangian_y_degree=xi_y_lagrangian_y_degree
+            xi_y_lagrangian_y_degree=xi_y_lagrangian_y_degree,
+            state_eq_lagrangian_x_degree=state_eq_lagrangian_x_degree,
+            state_eq_lagrangian_y_degree=state_eq_lagrangian_y_degree
         )
         # 2. construct the x_set, and y_sets
         (
@@ -391,7 +456,10 @@ class UnionCbf:
             xi_list=xi_list,
             y_squared_polys=y_squared_polys
         )
-        return prog
+        if output_lagragians:
+            return (prog, subset_lagrangian)
+        else:
+            return prog
         
     def check_feasibility_in_subset(
         self,
@@ -404,6 +472,8 @@ class UnionCbf:
         xi_y_lagrangian_y_degree: int,
         eta: float,
         epsilon: float,
+        state_eq_lagrangian_x_degree: Optional[int]=None,
+        state_eq_lagrangian_y_degree: Optional[int]=None,
     ) -> bool:
         prog = self.construct_feasibility_check_prog(
             subset=subset,
@@ -413,6 +483,8 @@ class UnionCbf:
             lambda_y_lagrangian_y_degree=lambda_y_lagrangian_y_degree,
             xi_y_lagrangian_x_degree=xi_y_lagrangian_x_degree,
             xi_y_lagrangian_y_degree=xi_y_lagrangian_y_degree,
+            state_eq_lagrangian_x_degree=state_eq_lagrangian_x_degree,
+            state_eq_lagrangian_y_degree=state_eq_lagrangian_y_degree,
             eta=eta,
             epsilon=epsilon
         )
@@ -430,6 +502,8 @@ class UnionCbf:
         xi_y_lagrangian_y_degree: int,
         eta: float,
         epsilon: float,
+        state_eq_lagrangian_x_degree: Optional[int]=None,
+        state_eq_lagrangian_y_degree: Optional[int]=None,
     ):
         """
         This function checks another simpler type of feasibility
@@ -482,6 +556,8 @@ class UnionCbf:
             lambda_y_lagrangian_y_degree=lambda_y_lagrangian_y_degree,
             xi_y_lagrangian_x_degree=xi_y_lagrangian_x_degree,
             xi_y_lagrangian_y_degree=xi_y_lagrangian_y_degree,
+            state_eq_lagrangian_x_degree=state_eq_lagrangian_x_degree,
+            state_eq_lagrangian_y_degree=state_eq_lagrangian_y_degree,
             eta=eta,
             epsilon=epsilon
         )
@@ -496,6 +572,8 @@ class UnionCbf:
         xi_y_lagrangian_y_degree: int,
         eta: float,
         epsilon: float,
+        state_eq_lagrangian_x_degree: Optional[int]=None,
+        state_eq_lagrangian_y_degree: Optional[int]=None,
     ):
         """
         This is the main function that will be for experiments.
@@ -529,6 +607,8 @@ class UnionCbf:
                 lambda_y_lagrangian_y_degree=lambda_y_lagrangian_y_degree,
                 xi_y_lagrangian_x_degree=xi_y_lagrangian_x_degree,
                 xi_y_lagrangian_y_degree=xi_y_lagrangian_y_degree,
+                state_eq_lagrangian_x_degree=state_eq_lagrangian_x_degree,
+                state_eq_lagrangian_y_degree=state_eq_lagrangian_y_degree,
                 eta=eta,
                 epsilon=epsilon
             )
@@ -553,6 +633,8 @@ class UnionCbf:
         xi_y_lagrangian_y_degree: int,
         eta: float,
         epsilon: float,
+        state_eq_lagrangian_x_degree: Optional[int]=None,
+        state_eq_lagrangian_y_degree: Optional[int]=None,
     ):
         """
         This function verifies the conditions in Theorem 3 in the paper.
@@ -568,6 +650,8 @@ class UnionCbf:
                 lambda_y_lagrangian_y_degree=lambda_y_lagrangian_y_degree,
                 xi_y_lagrangian_x_degree=xi_y_lagrangian_x_degree,
                 xi_y_lagrangian_y_degree=xi_y_lagrangian_y_degree,
+                state_eq_lagrangian_x_degree=state_eq_lagrangian_x_degree,
+                state_eq_lagrangian_y_degree=state_eq_lagrangian_y_degree,
                 eta=eta,
                 epsilon=epsilon
             )
@@ -580,15 +664,44 @@ class UnionCbf:
                 print(f"Time taken: {end_time - start_time} seconds")
         return verification_succeeded
 
-    def bilinear_alternation():
-        """
-        This function implements the bilinear alternation algorithm
-        to synthesize a single CBF. We define this function in the
-        union of CBFs class since single CBF is a special case of
-        union of CBFs. But since this function only synthesizes a
-        single CBF, then we should check the input at the first few
-        commands of this function.
-        """
+    def validity_verification_of_single_cbf(
+        self,
+        cbf: sym.Polynomial,
+        unsafe_poly_lagrangian_x_degrees: List[int],
+        cbf_lagrangian_x_degree: int,
+    ) -> bool:
+        assert self.unsafe_polys is not None
+        unsafe_check_obj = UnsafeExclusion(
+            x=self.x,
+            unsafe_polys=self.unsafe_polys,
+            h=cbf
+        )
+        cbf_valid = unsafe_check_obj.verify_unsafe_exclusion(
+            unsafe_poly_x_degrees=unsafe_poly_lagrangian_x_degrees,
+            h_x_degree=cbf_lagrangian_x_degree
+        )
+        return cbf_valid
+
+    def validity_verification_of_all_cbfs(
+        self,
+        unsafe_poly_lagrangian_x_degrees: List[int],
+        cbf_lagrangian_x_degree: int,
+    ) -> List[UnsafeRegionExclusionLagrangians]:
+        assert self.unsafe_polys is not None
+        all_cbf_valid = True
+        for i in range(self.n_h):
+            cbf = self.cbfs[i]
+            cbf_valid = self.validity_verification_of_single_cbf(
+                cbf=cbf,
+                unsafe_poly_lagrangian_x_degrees=unsafe_poly_lagrangian_x_degrees,
+                cbf_lagrangian_x_degree=cbf_lagrangian_x_degree
+            )
+            if not cbf_valid:
+                all_cbf_valid = False
+                print(f"The CBF with index {i} fails the validity verification.")
+            else:
+                print(f"The CBF with index {i} passes the validity verification.")
+        return all_cbf_valid
 
     def _lambda_xi(
         self,
@@ -645,11 +758,19 @@ class UnionCbf:
         lambda_y_lagrangian_y_degree: int,
         xi_y_lagrangian_x_degree: int,
         xi_y_lagrangian_y_degree: int,
+        state_eq_lagrangian_x_degree: Optional[int],
+        state_eq_lagrangian_y_degree: Optional[int],
     ) -> SubsetFeasibilityLagrangianDegrees:
         """
         This functiion constructs the lagrangian degrees
         for the feasibility verification of the given subset.
         """
+        if state_eq_lagrangian_x_degree is None or \
+           state_eq_lagrangian_y_degree is None:
+            assert self.state_eq_const is None
+        else:
+            assert self.state_eq_const is not None
+
         num_activated = int(np.sum(subset.activation_index))
         s0_degree = [
             Degree(
@@ -677,10 +798,21 @@ class UnionCbf:
                 c=0
             ) for _ in range(num_activated)
         ]
+        p_state_eq_degree = ([
+            Degree(
+                x=state_eq_lagrangian_x_degree,
+                y=state_eq_lagrangian_y_degree,
+                c=0
+            )
+            for _ in range(self.state_eq_const.shape[0])
+        ] if self.state_eq_const is not None
+        else None
+        )
         return SubsetFeasibilityLagrangianDegrees(
             s0=s0_degree,
             s_lambda_y=s_lambda_y_degree,
-            q_xi_y=q_xi_y_degree
+            q_xi_y=q_xi_y_degree,
+            p_state_eq=p_state_eq_degree
         )
 
     def _construct_x_y_sets(
@@ -797,6 +929,12 @@ class UnionCbf:
             poly_constraint -= (
                 subset_lagrangian.xi_y[i] * (xi_y_term)
                 )
+        # if we also have state equation constraints in the state space,
+        # we should also add one more terms 
+        if self.state_eq_const is not None:
+            poly_constraint -= subset_lagrangian.state_eq.dot(
+                self.state_eq_const
+            )
         # add the sos constraint to the program
         prog.AddSosConstraint(poly_constraint, sos_type)
 

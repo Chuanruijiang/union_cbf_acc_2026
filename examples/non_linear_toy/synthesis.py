@@ -185,7 +185,7 @@ def main():
     points_to_include = system_obj.original_to_extended_state_space(
         input_points=points_to_include_2d
     )
-    points_inlusion_weights = np.ones(points_to_include.shape[0])
+    points_inlusion_weights = np.array([1])
     points_inclusion_obj = CompatibleStatesOptions(
         candidate_compatible_states=points_to_include,
         anchor_states=None,
@@ -195,7 +195,7 @@ def main():
         relative_degrees=None,
         weight_lower_lie_derivatives=None,
         V_margin=None,
-        h_margin=None
+        h_margins=None
         )
     
     cbf_synthesis_obj = CompatibleClfCbf(
@@ -203,6 +203,7 @@ def main():
         g=g,
         x=x,
         exclude_sets=[exclude_set],
+        within_set=None,
         Au=control_limits[0],
         bu=control_limits[1],
         with_clf=False,

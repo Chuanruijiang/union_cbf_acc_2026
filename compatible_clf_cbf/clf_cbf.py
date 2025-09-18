@@ -2078,7 +2078,7 @@ class CompatibleClfCbf:
         else:
             assert V is None
             num_rows = self.num_cbf
-            assert h.size > 1, "You should use multiple CBF when with_clf is False."
+            # assert h.size > 1, "You should use multiple CBF when with_clf is False."
         if self.Au is not None:
             num_rows += self.Au.shape[0]
 

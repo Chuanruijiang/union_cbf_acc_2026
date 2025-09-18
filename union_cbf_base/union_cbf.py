@@ -103,7 +103,7 @@ Assume we have N_h number of CBFs in total.
     u is the control input with dimension n_u
 Then:
     s_0: is an SOS vector with N_h elements.
-    there are n number of SOS vectors s_i, each with dimension n_u
+    there are n number of polynomial vectors s_i, each with dimension n_u
     there are n number of polynomial q_i, each is a scalar polynomial.
     if we also has l number of state equation constraints in the state
     space, then p(x, y) is also a vector of l number of polynomials.

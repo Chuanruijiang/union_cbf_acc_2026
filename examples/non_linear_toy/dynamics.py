@@ -112,6 +112,26 @@ class NonlinearToyPlant(drake_sys_frame.LeafSystem):
         ])
         return Au, bu
 
+    def original_to_extended_state_space(
+        self,
+        input_points: np.ndarray
+    ) -> np.ndarray:
+        """
+        This function maps the original state space to the extended
+        state space.
+        input_points: shape (N, 2), where N is the number of points.
+        output_points: shape (N, 3), where N is the number of points.
+        for the input point [gamma, theta], the output point is
+        [gamma, sin(theta), cos(theta)-1]
+        """
+        assert input_points.shape[1] == 2
+        N = input_points.shape[0]
+        output_points = np.zeros((N, 3))
+        for i in range(N):
+            output_points[i, 0] = input_points[i, 0]
+            output_points[i, 1] = np.sin(input_points[i, 1])
+            output_points[i, 2] = np.cos(input_points[i, 1]) - 1
+        return output_points
 
 
 

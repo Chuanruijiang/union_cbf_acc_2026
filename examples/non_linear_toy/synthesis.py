@@ -1,5 +1,7 @@
 import os
 import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+
 import os.path
 import pickle
 
@@ -12,15 +14,17 @@ from union_cbf_base.utils import (
     deserialize_polynomial,
     BackoffScale,
 )
-from union_cbf_base.clf import ClfSynthesis
-from union_cbf_base.union_cbf import UnionCbfSynthesisGivenClf
-from dynamics import (
-    system_dynamics,
-    state_equation_constraint,
-    original_to_extended_state_space,
+from compatible_clf_cbf.clf_cbf import(
+    CompatibleClfCbf,
+    CompatibleStatesOptions,
+    ExcludeSet,
+    CompatibleLagrangianDegrees,
+    SafetySetLagrangianDegrees,
+    ExcludeRegionLagrangianDegrees,
+    XYDegree
 )
 
-sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))
+from dynamics import NonlinearToyPlant
 
 
 def get_pkl_file_path(name_file: str):
@@ -140,36 +144,24 @@ def save_synthesis_results(
 
 def main():
     pi = np.pi
-    x = sym.MakeVectorContinuousVariable(3, "x")
-    x_set = sym.Variables(x)
+    nx = 3
+    nu = 2
+    x = sym.MakeVectorContinuousVariable(nx, "x")
+    system_obj = NonlinearToyPlant()
 
-    data = load_clf(
-        pickle_path=get_pkl_file_path(name_file="non_linear_toy_clf_init.pkl"),
-        x_set=x_set,
-    )
-    V_init = data["V"]
-
-    f, g = system_dynamics(x)
-    state_eq_const = state_equation_constraint(x)
-
-    # (Au, bu) = control_limits(x)
-    (Au, bu) = None, None
+    (f, g) = system_obj.affine_dynamics(x)
+    state_eq_const = system_obj.state_eq_constraint(x)
+    control_limits = system_obj.control_limits()
 
     # set parameters:
-    epsilon_0 = 0.1
-    rho = 1
-    kappaV = 0.05
-    kappa_diff = 0.01
-    kappah = [1.0, 1.0]
+    alpha = 0.1
 
     # unsafe Region:
-    unsafe_polys = np.array(
-        [sym.Polynomial(-x[0] + 0.3), sym.Polynomial(-x[1] + np.sin(-pi / 4))]
-    )
-
-    clf_synthesis = ClfSynthesis(
-        x=x, sys_dyn_f=f, sys_dyn_g=g, Au=Au, bu=bu, state_eq_constraint=state_eq_const
-    )
+    unsafe_polys = np.array([
+        sym.Polynomial(x[0] - 0.3),
+        sym.Polynomial(x[1] - np.sin(-pi/4))
+    ])
+    exclude_set = ExcludeSet(l=unsafe_polys)
 
     # define the points to be included in the γ, θ domain
     points_to_include_2d = np.array(
@@ -190,142 +182,70 @@ def main():
             [1.8, pi / 6],
         ]
     )
-    points_to_include = original_to_extended_state_space(
+    points_to_include = system_obj.original_to_extended_state_space(
         input_points=points_to_include_2d
     )
     points_inlusion_weights = np.ones(points_to_include.shape[0])
-
-    # synthesize the clf
-    V_result = clf_synthesis.bilinear_alternation(
-        clf_init=V_init,
-        rho=rho,
-        kappaV=kappaV + kappa_diff,
-        ball_radius=epsilon_0,
-        ball_inclusion_ball_x_degree=2,
-        ball_inclusion_h_x_degree=2,
-        clf_lagrangain_lambda_y_x_degree=[2, 2],
-        clf_lagrangain_xi_y_x_degree=2,
-        clf_lagrangain_rho_minus_V_x_degree=2,
-        V_x_degree=2,
-        included_points=points_to_include,
-        points_inclusion_weights=np.ones(points_to_include.shape[0]),
-        state_eq_constraints_x_degree=[2],
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=20,
-        lagrangian_coeff_tol=1e-3,
-    )
-    assert V_result is not None
-
-    # save_synthesized_clf(
-    #     V=V_result,
-    #     x_set=x_set,
-    #     pickle_path=get_pkl_file_path("non_linear_toy_clf_synthesized.pkl")
-    # )
-
-    # data = load_clf(
-    #     pickle_path=get_pkl_file_path("non_linear_toy_clf_synthesized.pkl"),
-    #     x_set=x_set
-    # )
-    # V_result = data["V"]
-
-    # compute epsilon for CBF synthesis:
-    V_min = compute_minimum_on_boundary(
-        x=x, p=V_result, q=sym.Polynomial(epsilon_0**2 - x.dot(x))
-    )
-    print(V_min)
-    epsilon = kappa_diff * V_min
-    print(f"We use this epsilon for the following CBF synthesis: {epsilon}")
-
-    cbf_synthesis_given_clf = UnionCbfSynthesisGivenClf(
+    points_inclusion_obj = CompatibleStatesOptions(
+        candidate_compatible_states=points_to_include,
+        anchor_states=None,
+        h_anchor_bounds=None,
+        weight_V=None,
+        weight_h=points_inlusion_weights,
+        relative_degrees=None,
+        weight_lower_lie_derivatives=None,
+        V_margin=None,
+        h_margin=None
+        )
+    
+    cbf_synthesis_obj = CompatibleClfCbf(
+        f=f,
+        g=g,
         x=x,
-        sys_dyn_f=f,
-        sys_dyn_g=g,
-        clf=V_result,
-        rho=rho,
-        num_cbf=2,
-        unsafe_polys=unsafe_polys,
-        Au=Au,
-        bu=Au,
-        state_eq_constraints=state_eq_const,
-        kappaV=kappaV,
-        kappah=kappah,
-        epsilon_0=epsilon_0,
-        epsilon=epsilon,
-        cbf_x_degrees=[1, 1],
-        cbf_ball_inclusion_ball_x_degree=2,
-        cbf_ball_inclusion_cbf_x_degree=2,
-        compatible_lambda_y_x_degrees=[2, 2],
-        compatible_xi_y_x_degree=2,
-        compatible_rho_minus_V_x_degree=2,
-        compatible_deact_cbf_x_degree=[2],
-        compatible_h_x_degree=2,
-        state_eq_x_degrees=[2],
-        safety_h_x_degree=2,
-        safety_unsafe_polys_x_degree=[2, 2],
+        exclude_sets=[exclude_set],
+        Au=control_limits[0],
+        bu=control_limits[1],
+        with_clf=False,
+        state_eq_constraints=state_eq_const
     )
 
-    # synthesis the first cbf:
-    cbf_1_result = cbf_synthesis_given_clf.synthesis_first_cbf(
-        cbf_init=sym.Polynomial(x[1] - np.sin(-pi / 6)),
-        points_to_include=points_to_include,
-        weights_to_include=np.ones(points_to_include.shape[0]),
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=2,
+    # specify lagrangian degrees:
+    safety_lagrangian_degrees = SafetySetLagrangianDegrees(
+        exclude=[
+            ExcludeRegionLagrangianDegrees(
+                cbf=[2], unsafe_region=[2,2], state_eq_constraints=[2]
+            )
+        ],
+        within=[]
     )
-    assert cbf_1_result is not None
-
-    # save_synthesized_cbf(
-    #     h=cbf_1_result,
-    #     x_set=x_set,
-    #     pickle_path=get_pkl_file_path("non_linear_toy_cbf_1_synthesized.pkl")
-    # )
-
-    # data = load_cbf(
-    #     pickle_path=get_pkl_file_path("non_linear_toy_cbf_1_synthesized.pkl"),
-    #     x_set=x_set
-    # )
-    # cbf_1_result = data["h"]
-
-    (
-        points_to_include,
-        points_inlusion_weights,
-    ) = cbf_synthesis_given_clf.remove_included_points(
-        included_points=points_to_include,
-        points_inclusion_weights=points_inlusion_weights,
-        solved_cbf=cbf_1_result,
+    compatible_lagrangian_degrees = CompatibleLagrangianDegrees(
+        lambda_y=[XYDegree(x=2, y=0)]*nu,
+        xi_y=XYDegree(x=2, y=0),
+        y=None,
+        y_cross=None,
+        rho_minus_V=None,
+        h_plus_eps=[XYDegree(x=2, y=2)],
+        lower_lie_derivative=None,
+        state_eq_constraints=[XYDegree(x=2, y=2)]
     )
 
-    # synthesize the second cbf:
-    back_off_scales = [
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None),
-        BackoffScale(rel=0.00, abs=None)
-    ]
-    cbf_2_result = cbf_synthesis_given_clf.synthesis_other_cbf(
-        cbf_init=sym.Polynomial(x[0] - 1),
-        cbf_index=1,
-        deact_cbfs=np.array([cbf_1_result]),
-        points_to_include=points_to_include,
-        weights_to_include=points_inlusion_weights,
-        anchor_points=None,
-        anchor_bounds=None,
-        max_iter=5,
-        back_off_scale=back_off_scales,
+    (_, cbf_result) = cbf_synthesis_obj.bilinear_alternation(
+        V_init=None,
+        h_init=np.array([sym.Polynomial(0.01 - x[1]**2 - x[2]**2)]),
+        compatible_lagrangian_degrees=compatible_lagrangian_degrees,
+        safety_sets_lagrangian_degrees=safety_lagrangian_degrees,
+        kappa_V=None,
+        kappa_h=np.array([alpha]),
+        barrier_eps=np.array([0]),
+        x_equilibrium=None,
+        clf_degree=None,
+        cbf_degrees=[2],
+        max_iter=10,
+        compatible_states_options=points_inclusion_obj,
     )
-    assert cbf_2_result is not None
 
-    # h_results = np.array([cbf_1_result, cbf_2_result])
-
-    # save_synthesis_results(
-    #     V_res=V_result,
-    #     h_res=h_results,
-    #     x_set=x_set,
-    #     pickle_path=get_pkl_file_path("non_linear_toy_clf_union_cbf_synthesized.pkl")
-    # )
+    assert cbf_result is not None
+    
 
 
 if __name__ == "__main__":

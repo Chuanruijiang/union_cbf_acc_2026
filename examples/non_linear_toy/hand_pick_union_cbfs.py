@@ -8,7 +8,7 @@ import os
 import sys
 import os.path
 import pickle
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../.."))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from typing import Optional
 import numpy as np
@@ -25,27 +25,14 @@ from union_cbf_base.union_cbf import UnionCbf
 from union_cbf_base.non_empty_subset import Subset
 from dynamics import NonlinearToyPlant
 
-def get_pkl_file_path(
-    name_file: str
-):  
-    filename = name_file
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
-    )
-    return path
 
-def save_synthesis_results(
-    V_res: sym.Polynomial,
-    h_res: np.ndarray,
+def save_cbfs(
+    cbfs: np.ndarray,
     x_set: sym.Variables,
-    pickle_path: str,
 ):
-    _, file_extension = os.path.splitext(pickle_path)
-    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
+    pickle_path = "examples/non_linear_toy/union_cbfs.pkl"
     data = {}
-    
-    data["V"] = serialize_polynomial(V_res, x_set)
-    data["h"] = [serialize_polynomial(h_i, x_set) for h_i in h_res]
+    data["cbfs"] = [serialize_polynomial(h_i, x_set) for h_i in cbfs]
 
     if os.path.exists(pickle_path):
         overwrite_cmd = input(
@@ -62,13 +49,15 @@ def save_synthesis_results(
         with open(pickle_path, "wb") as handle:
             pickle.dump(data, handle)
 
-def load_clf(pickle_path: str, x_set: sym.Variables) -> dict:
-    ret = {}
-    with open(pickle_path, "rb") as handle:
+def load_union_cbfs(x_set: sym.Variables) -> dict:
+    with open("examples/non_linear_toy/union_cbfs.pkl", "rb") as handle:
         data = pickle.load(handle)
 
-    ret["V"] = deserialize_polynomial(data["V"], x_set)
-    return ret
+    cbfs = np.array([
+        deserialize_polynomial(data["cbfs"][i], x_set)
+        for i in range(len(data["cbfs"]))
+    ])
+    return cbfs
 
 def main():
     pi = np.pi
@@ -89,30 +78,12 @@ def main():
         sym.Polynomial(x[1] - np.sin(-pi/4))
     ])
 
-    # # define the points to be included in the γ, θ domain
-    # points_to_include_2d = np.array([
-    #     [-0.8, pi/4],
-    #     [-1.5, pi/4],
-    #     [-0.8, -pi/4.5],
-    #     [-1.1, -pi/4.5],
-    #     [0.5, -pi/3.5],
-    #     [0.5, -pi/3],
-    #     [1.5, -pi/3],
-    #     [0.9, -pi/3],
-    #     [0.9, pi/6],
-    #     [1.8, -pi/8],
-    #     [2, pi/2.5],
-    #     [-2, pi/8],
-    #     [0.9, pi/4],
-    #     [1.8, pi/6]
-    # ])
-
     # we manucally pick the following 1-degree CBFs to form the union:
     cbfs = np.array([
         sym.Polynomial(x[0] - 0.35),
         sym.Polynomial(x[1] - np.sin(-pi/(4.5)))
     ])
-
+    # we verify whether these picked CBFs are valid
     union_obj = UnionCbf(
         x=x,
         f=f,
@@ -127,25 +98,7 @@ def main():
         unsafe_poly_lagrangian_x_degrees=[2]*unsafe_polys.shape[0],
         cbf_lagrangian_x_degree=2
     )
-    # union_feasible_thm2 = union_obj.verification_of_theorem_2(
-    #     cbf_lagrangian_x_degree=2,
-    #     cbf_lagrangian_y_degree=2,
-    #     lambda_y_lagrangian_x_degree=2,
-    #     lambda_y_lagrangian_y_degree=0,
-    #     xi_y_lagrangian_x_degree=2,
-    #     xi_y_lagrangian_y_degree=0,
-    #     eta=eta,
-    #     epsilon=epsilon,
-    #     state_eq_lagrangian_x_degree=2,
-    #     state_eq_lagrangian_y_degree=2
-    # )
-    subset_obj = Subset(
-        x=x,
-        cbfs=cbfs,
-        activation_index=np.array([0, 1])
-    )
-    check_subset = union_obj.check_feasibility_in_subset(
-        subset=subset_obj,
+    union_feasible_thm2 = union_obj.verification_of_theorem_2(
         cbf_lagrangian_x_degree=2,
         cbf_lagrangian_y_degree=2,
         lambda_y_lagrangian_x_degree=2,
@@ -157,7 +110,6 @@ def main():
         state_eq_lagrangian_x_degree=2,
         state_eq_lagrangian_y_degree=2
     )
-    assert check_subset, "The feasibility in the subset fails."
     union_feasible_thm3 = union_obj.verification_of_theorem_3(
         cbf_lagrangian_x_degree=2,
         cbf_lagrangian_y_degree=2,
@@ -171,12 +123,18 @@ def main():
         state_eq_lagrangian_y_degree=2
     )
 
-    assert cbf_valid, "One of the CBFs fails the validity verification."
-    assert union_feasible_thm2, "The feasibility of theorem 2 fails."
-    assert union_feasible_thm3, "The feasibility of theorem 3 fails."
+    assert cbf_valid, \
+        "The CBFs are not valid!"
+    assert union_feasible_thm2, \
+        "The union CBF does not satisfy the conditions in Theorem 2!"
+    assert union_feasible_thm3, \
+        "The union CBF does not satisfy the conditions in Theorem 3!"
 
+    print("The union CBF is valid and \
+          satisfies the conditions in both Theorem 2 and Theorem 3!")
 
-
+    save_cbfs(cbfs, x_set=sym.Variables(x))
+    
 
 
 

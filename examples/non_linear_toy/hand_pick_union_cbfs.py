@@ -81,7 +81,7 @@ def main():
     # we manucally pick the following 1-degree CBFs to form the union:
     cbfs = np.array([
         sym.Polynomial(x[0] - 0.35),
-        sym.Polynomial(x[1] - np.sin(-pi/(4.5)))
+        sym.Polynomial(x[1] - np.sin(-pi/(4.1)))
     ])
     # we verify whether these picked CBFs are valid
     union_obj = UnionCbf(

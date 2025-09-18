@@ -17,10 +17,10 @@ def plot_2D_function(
     y_range: Tuple[float, float],
     sampling_rate: Optional[int],
     with_contour: bool,
-    with_region_filled: bool,
     color: str,
-    alpha: float,
-    contour_line_style='-'
+    contour_line_style='-',
+    with_region_filled: bool=False,
+    alpha: Optional[float]=None,
 ):
     """
     Given a function f(x) defined over a 2D domain, plot the superlvel set

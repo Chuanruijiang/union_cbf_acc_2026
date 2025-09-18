@@ -60,8 +60,6 @@ def load_synthesized_cbf(x_set: sym.Variables) -> sym.Polynomial:
     h = deserialize_polynomial(data["cbf"], x_set)
     return h
 
-
-
 def main():
     pi = np.pi
     nx = 3

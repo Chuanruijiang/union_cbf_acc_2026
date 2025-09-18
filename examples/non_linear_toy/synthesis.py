@@ -27,36 +27,16 @@ from compatible_clf_cbf.clf_cbf import(
 from dynamics import NonlinearToyPlant
 
 
-def get_pkl_file_path(name_file: str):
-    filename = name_file
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
-    )
-    return path
-
-
-def load_clf(pickle_path: str, x_set: sym.Variables) -> dict:
-    ret = {}
-    with open(pickle_path, "rb") as handle:
-        data = pickle.load(handle)
-
-    ret["V"] = deserialize_polynomial(data["V"], x_set)
-    return ret
-
-
-def save_synthesized_clf(
+def save_synthesized_cbf(
     V: sym.Polynomial,
     x_set: sym.Variables,
-    pickle_path: str,
 ):
     """
     Save the CLF and CBF to a pickle file.
     """
-    _, file_extension = os.path.splitext(pickle_path)
-    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
+    pickle_path = "examples/non_linear_toy/synthesized_high_degree_cbf.pkl"
     data = {}
-
-    data["V"] = serialize_polynomial(V, x_set)
+    data["cbf"] = serialize_polynomial(V, x_set)
 
     if os.path.exists(pickle_path):
         overwrite_cmd = input(
@@ -73,73 +53,13 @@ def save_synthesized_clf(
         with open(pickle_path, "wb") as handle:
             pickle.dump(data, handle)
 
-
-def load_cbf(pickle_path: str, x_set: sym.Variables) -> dict:
-    ret = {}
-    with open(pickle_path, "rb") as handle:
+def load_synthesized_cbf(x_set: sym.Variables) -> sym.Polynomial:
+    with open("examples/non_linear_toy/synthesized_high_degree_cbf.pkl", "rb") as handle:
         data = pickle.load(handle)
+    
+    h = deserialize_polynomial(data["cbf"], x_set)
+    return h
 
-    ret["h"] = deserialize_polynomial(data["h"], x_set)
-    return ret
-
-
-def save_synthesized_cbf(
-    h: sym.Polynomial,
-    x_set: sym.Variables,
-    pickle_path: str,
-):
-    """
-    Save the CLF and CBF to a pickle file.
-    """
-    _, file_extension = os.path.splitext(pickle_path)
-    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
-    data = {}
-
-    data["h"] = serialize_polynomial(h, x_set)
-
-    if os.path.exists(pickle_path):
-        overwrite_cmd = input(
-            f"File {pickle_path} already exists. Overwrite the file? Press [Y/n]:"
-        )
-        if overwrite_cmd in ("Y", "y"):
-            save_cmd = True
-        else:
-            save_cmd = False
-    else:
-        save_cmd = True
-
-    if save_cmd:
-        with open(pickle_path, "wb") as handle:
-            pickle.dump(data, handle)
-
-
-def save_synthesis_results(
-    V_res: sym.Polynomial,
-    h_res: np.ndarray,
-    x_set: sym.Variables,
-    pickle_path: str,
-):
-    _, file_extension = os.path.splitext(pickle_path)
-    assert file_extension in (".pkl", ".pickle"), f"File extension is {file_extension}"
-    data = {}
-
-    data["V"] = serialize_polynomial(V_res, x_set)
-    data["h"] = [serialize_polynomial(h_i, x_set) for h_i in h_res]
-
-    if os.path.exists(pickle_path):
-        overwrite_cmd = input(
-            f"File {pickle_path} already exists. Overwrite the file? Press [Y/n]:"
-        )
-        if overwrite_cmd in ("Y", "y"):
-            save_cmd = True
-        else:
-            save_cmd = False
-    else:
-        save_cmd = True
-
-    if save_cmd:
-        with open(pickle_path, "wb") as handle:
-            pickle.dump(data, handle)
 
 
 def main():
@@ -154,7 +74,7 @@ def main():
     control_limits = system_obj.control_limits()
 
     # set parameters:
-    alpha = 0.1
+    alpha = 0.01
 
     # unsafe Region:
     unsafe_polys = np.array([
@@ -188,8 +108,8 @@ def main():
     points_inlusion_weights = np.array([1])
     points_inclusion_obj = CompatibleStatesOptions(
         candidate_compatible_states=points_to_include,
-        anchor_states=None,
-        h_anchor_bounds=None,
+        anchor_states=np.zeros(shape=(1,nx)),
+        h_anchor_bounds=[(np.array([1e-5]), np.array([np.inf]))],
         weight_V=None,
         weight_h=points_inlusion_weights,
         relative_degrees=None,
@@ -232,7 +152,7 @@ def main():
 
     (_, cbf_result) = cbf_synthesis_obj.bilinear_alternation(
         V_init=None,
-        h_init=np.array([sym.Polynomial(0.01 - x[1]**2 - x[2]**2)]),
+        h_init=np.array([sym.Polynomial(0.01 - x.dot(x))]),
         compatible_lagrangian_degrees=compatible_lagrangian_degrees,
         safety_sets_lagrangian_degrees=safety_lagrangian_degrees,
         kappa_V=None,
@@ -244,9 +164,13 @@ def main():
         max_iter=10,
         compatible_states_options=points_inclusion_obj,
     )
-
     assert cbf_result is not None
     
+    save_synthesized_cbf(
+        V=cbf_result[0],
+        x_set=sym.Variables(x)
+    )
+      
 
 
 if __name__ == "__main__":

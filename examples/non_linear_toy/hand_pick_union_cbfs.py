@@ -67,6 +67,7 @@ def main():
     state_eq_const = system_obj.state_eq_constraint(x)
     control_limits = system_obj.control_limits()
 
+
     # set parameters:
     eta = 1e-3
     epsilon = 0.01
@@ -133,7 +134,7 @@ def main():
     print("The union CBF is valid and \
           satisfies the conditions in both Theorem 2 and Theorem 3!")
 
-    save_cbfs(cbfs, x_set=sym.Variables(x))
+    # save_cbfs(cbfs, x_set=sym.Variables(x))
     
 
 

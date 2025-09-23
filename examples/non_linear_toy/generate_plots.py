@@ -9,6 +9,7 @@ import pydrake.symbolic as sym
 import matplotlib.axes
 import matplotlib.contour
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 from union_cbf_base.utils import(
     deserialize_polynomial
@@ -187,7 +188,7 @@ def main():
         sampling_rate=None,
         with_contour=True,
         color="darkgreen",
-        contour_line_style="--"
+        contour_line_style="-"
     )
 
     # plot the union of cbf region h_i(x)>=0, i=1,2
@@ -208,6 +209,7 @@ def main():
         sampling_rate=None,
         with_contour=True,
         color="blue",
+        contour_line_style="--"
     )
     plot_2D_function(
         ax=ax,
@@ -218,6 +220,7 @@ def main():
         sampling_rate=None,
         with_contour=True,
         color="purple",
+        contour_line_style="--"
     )
 
     ax.set_xlabel(r"$\gamma$", fontsize=18, fontweight="bold")
@@ -240,6 +243,26 @@ def main():
     ax.set_xlim(-2, 2)
     ax.set_ylim(-pi/2, pi/2)
     ax.set_aspect("equal")
+
+    legend_elements = [
+        plt.Line2D([0], [0],
+        color='darkgreen', lw=1.5, linestyle="-", label=r"$h(x)=0$"),
+        plt.Line2D([0], [0],
+        color='blue', lw=1.5, linestyle="--", label=r"$h_1(x)=0$"),
+        plt.Line2D([0], [0],
+        color='purple', lw=1.5, linestyle="--", label=r"$h_2(x)=0$"),
+        patches.Patch(facecolor='green', edgecolor=None, 
+        alpha=0.3, label=r"$\mathcal{X}_c$"),
+        patches.Patch(facecolor='grey', edgecolor=None, 
+        alpha=1.0, label=r"$\mathcal{X}_u$")
+    ]
+
+    ax.legend(
+        handles=legend_elements,
+        loc='upper right',
+        fontsize=12
+    )
+
 
 
 if __name__ == "__main__":

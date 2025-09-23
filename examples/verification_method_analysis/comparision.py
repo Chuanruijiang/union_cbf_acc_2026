@@ -18,7 +18,7 @@ import pydrake.symbolic as sym
 
 from union_cbf_base.non_empty_subset import Subset
 from union_cbf_base.union_cbf import UnionCbf
-from examples.trajectory_tracking import plant
+from nonlinear_dynamics import NonlinearToyPlant
 from different_alignments import (
     sparse_cbf_example,
     dense_cbf_example,
@@ -34,9 +34,9 @@ def verification_dense_thm2():
 
 def verification_sparse_thm3():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    single_integrator = plant.SingleIntegratorPlant()
-    f, g = single_integrator.affine_dynamics(x)
-    A, c = single_integrator.control_limits()
+    toy = NonlinearToyPlant()
+    f, g = toy.affine_dynamics(x)
+    A, c = toy.control_limits()
     cbfs = sparse_cbf_example(x)
     union_object = UnionCbf(
         x=x,
@@ -66,9 +66,9 @@ def verification_sparse_thm3():
 
 def verification_dense_thm3():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    single_integrator = plant.SingleIntegratorPlant()
-    f, g = single_integrator.affine_dynamics(x)
-    A, c = single_integrator.control_limits()
+    toy = NonlinearToyPlant()
+    f, g = toy.affine_dynamics(x)
+    A, c = toy.control_limits()
     cbfs = dense_cbf_example(x)
     union_object = UnionCbf(
         x=x,

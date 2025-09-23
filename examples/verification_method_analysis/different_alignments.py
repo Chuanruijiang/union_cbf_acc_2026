@@ -31,7 +31,7 @@ import matplotlib.patches as patches
 
 from union_cbf_base.non_empty_subset import Subset
 from union_cbf_base.union_cbf import UnionCbf
-from examples.trajectory_tracking import plant
+from nonlinear_dynamics import NonlinearToyPlant
 
 def sparse_cbf_example(
         x: Optional[np.ndarray] = None
@@ -41,8 +41,8 @@ def sparse_cbf_example(
 ]:
     """ Create three sparse aligned circles as CBFs.
 
-    The three circles are centered at (-3, 0), (0, 0), (3, 0)
-    with radius 2.
+    The three circles are centered at (-0.3, 0), (0, 0), (0.3, 0)
+    with radius 0.2.
 
     Args:
         x: The state variable, a 2D vector.
@@ -51,13 +51,13 @@ def sparse_cbf_example(
         A numpy array of shape (3,) representing the three CBFs.
     """
     if x is not None and (x.shape == (2,)):
-        cbf1 = sym.Polynomial(2**2 - (x[0] + 3)**2 - (x[1] - 0)**2)
-        cbf2 = sym.Polynomial(2**2 - (x[0] - 0)**2 - (x[1] - 0)**2)
-        cbf3 = sym.Polynomial(2**2 - (x[0] - 3)**2 - (x[1] - 0)**2)
+        cbf1 = sym.Polynomial(0.2**2 - (x[0] + 0.3)**2 - (x[1] - 0)**2)
+        cbf2 = sym.Polynomial(0.2**2 - (x[0] - 0)**2 - (x[1] - 0)**2)
+        cbf3 = sym.Polynomial(0.2**2 - (x[0] - 0.3)**2 - (x[1] - 0)**2)
         return np.array([cbf1, cbf2, cbf3])
     else:
-        centers = np.array([[-3, 0], [0, 0], [3, 0]])
-        radius = 2
+        centers = np.array([[-0.3, 0], [0, 0], [0.3, 0]])
+        radius = 0.2
         return (centers, radius)
 
 def dense_cbf_example(
@@ -68,7 +68,7 @@ def dense_cbf_example(
 ]:
     """ Create three densely aligned circles as CBFs.
 
-    The three circles are centered at (-1, 0), (1, 0), (0, sqrt(3))
+    The three circles are centered at (-0.1, 0), (0.1, 0), (0, 0.1*sqrt(3))
     with radius 2.
 
     Args:
@@ -78,13 +78,13 @@ def dense_cbf_example(
         A numpy array of shape (3,) representing the three CBFs.
     """
     if x is not None and (x.shape == (2,)):
-        cbf1 = sym.Polynomial(2**2 - (x[0] + 1)**2 - (x[1] - 0)**2)
-        cbf2 = sym.Polynomial(2**2 - (x[0] - 1)**2 - (x[1] - 0)**2)
-        cbf3 = sym.Polynomial(2**2 - (x[0] - 0)**2 - (x[1] - np.sqrt(3))**2)
+        cbf1 = sym.Polynomial(0.2**2 - (x[0] + 0.1)**2 - (x[1] - 0)**2)
+        cbf2 = sym.Polynomial(0.2**2 - (x[0] - 0.1)**2 - (x[1] - 0)**2)
+        cbf3 = sym.Polynomial(0.2**2 - (x[0] - 0)**2 - (x[1] - 0.1*np.sqrt(3))**2)
         return np.array([cbf1, cbf2, cbf3])
     else:
-        centers = np.array([[-1, 0], [1, 0], [0, np.sqrt(3)]])
-        radius = 2
+        centers = np.array([[-0.1, 0], [0.1, 0], [0, 0.1*np.sqrt(3)]])
+        radius = 0.2
         return (centers, radius)
 
 def plot_examples():
@@ -94,7 +94,7 @@ def plot_examples():
     """
     Plot the the examples above for visualization. 
     """
-    fig, axs = plt.subplots(2, 1, figsize=(5, 10))
+    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
 
     # Plot sparse example
     for each_center in sparse_centers:
@@ -120,18 +120,22 @@ def plot_examples():
             )
         axs[1].add_patch(circle)
 
-    axs[0].set_title("Sparse Alignment of CBFs")
-    axs[0].set_xlim(-6, 6)
-    axs[0].set_ylim(-3, 3)
-    axs[1].set_title("Dense Alignment of CBFs")
-    axs[1].set_xlim(-4, 4)
-    axs[1].set_ylim(-3, 4)
+    axs[0].set_title("Sparse Layout of CBFs")
+    axs[0].set_xlim(-0.5, 0.5)
+    axs[0].set_ylim(-0.5, 0.5)
+    axs[0].set_xlabel(r"$x_1$", fontsize=16)
+    axs[0].set_ylabel(r"$x_2$", fontsize=16)
+    axs[1].set_title("Dense Layout of CBFs")
+    axs[1].set_xlim(-0.4, 0.4)
+    axs[1].set_ylim(-0.3, 0.5)
+    axs[1].set_xlabel(r"$x_1$", fontsize=16)
+    axs[1].set_ylabel(r"$x_2$", fontsize=16)
 
 def verification_sparse():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    single_integrator = plant.SingleIntegratorPlant()
-    f, g = single_integrator.affine_dynamics(x)
-    A, c = single_integrator.control_limits()
+    toy = NonlinearToyPlant()
+    f, g = toy.affine_dynamics(x)
+    A, c = toy.control_limits()
     cbfs = sparse_cbf_example(x)
     union_object = UnionCbf(
         x=x,
@@ -160,9 +164,9 @@ def verification_sparse():
 
 def verification_dense():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    single_integrator = plant.SingleIntegratorPlant()
-    f, g = single_integrator.affine_dynamics(x)
-    A, c = single_integrator.control_limits()
+    toy = NonlinearToyPlant()
+    f, g = toy.affine_dynamics(x)
+    A, c = toy.control_limits()
     cbfs = dense_cbf_example(x)
     union_object = UnionCbf(
         x=x,
@@ -191,8 +195,9 @@ def verification_dense():
     print(f"Time taken: {end_time - start_time} seconds")
 
 def main():
-    verification_sparse()
-    verification_dense()
+    plot_examples()
+    # verification_sparse()
+    # verification_dense()
 
 if __name__ == "__main__":
     main()

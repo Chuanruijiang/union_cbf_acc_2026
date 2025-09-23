@@ -91,8 +91,8 @@ class NonlinearToyPlant(drake_sys_frame.LeafSystem):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         This function defines the control limits of the system
-        u₁ ∈ [-0.2, 0.2],
-        u₂ ∈ [-0.2, 0.2]
+        u₁ ∈ [-0.5, 0.5],
+        u₂ ∈ [-5, 5]
         """
         u1_min = -0.5
         u1_max = 0.5
@@ -132,7 +132,4 @@ class NonlinearToyPlant(drake_sys_frame.LeafSystem):
             output_points[i, 1] = np.sin(input_points[i, 1])
             output_points[i, 2] = np.cos(input_points[i, 1]) - 1
         return output_points
-
-
-
 

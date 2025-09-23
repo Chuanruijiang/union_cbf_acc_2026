@@ -114,7 +114,7 @@ def run_simulation():
     duration_1 = 100.0 # duration for switching policy 1
     duration_2 = 300.0 # duration for switching policy 2
 
-    fig = plt.figure(figsize=(6, 6))
+    fig = plt.figure()
     ax = fig.add_subplot()
     env_setup = ExperimentSetup()
     env_setup.plot_setup(ax=ax)
@@ -144,34 +144,32 @@ def run_simulation():
     
     # trajectory plot:
     ax.plot(
-        state_data_2[0, :],
-        state_data_2[1, :],
-        linestyle="-",
-        color="orange",
-        linewidth=2.5,
-        )
-    ax.plot(
         state_data_1[0, :],
         state_data_1[1, :],
         linestyle="--",
         color="blue",
-        linewidth=1.5,
+        linewidth=3,
+        )
+    ax.plot(
+        state_data_2[0, :],
+        state_data_2[1, :],
+        linestyle="-",
+        color="orange",
+        linewidth=3.5,
+        alpha=0.8
         )
 
     ax.set_title("Trajectory Tracking with Different Switching Policies")
-    ax.set_xlabel("x1")
-    ax.set_ylabel("x2")
+    ax.set_xlabel("x1", fontsize=18)
+    ax.set_ylabel("x2", fontsize=18)
     ax.set_xlim(0, 35)
-    ax.set_ylim(0, 35)
+    ax.set_ylim(0, 33)
     legend_elements = [
         plt.Line2D([0], [0],
-            color='blue', lw=1.5, linestyle="--", label='Switching Policy 1'
+            color='blue', lw=3, linestyle="--", label='Switching Policy 1'
             ),
         plt.Line2D([0], [0],
-            color='orange', lw=2, linestyle="-", label='Switching Policy 2'
-            ),
-        plt.Line2D([0], [0],
-            color=(0, 1, 0), lw=2, linestyle='-.', label='CBF boundary'
+            color='orange', lw=3.5, linestyle="-", label='Switching Policy 2'
             ),
         patches.Patch(facecolor='black', edgecolor='black', alpha=0.5, label='Obstacles'),
         patches.Patch(facecolor='green', alpha=0.3, label='CBF regions')
@@ -179,7 +177,7 @@ def run_simulation():
     ax.legend(
         handles=legend_elements,
         loc='upper right',
-        fontsize=10
+        fontsize=12
         )
     
     

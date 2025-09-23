@@ -84,6 +84,3 @@ class SingleIntegratorPlant(drake_sys_frame.LeafSystem):
             -u2_min
         ])
         return Au, bu
-
-
-

@@ -38,10 +38,10 @@ class ExperimentSetup:
             [23 + 6*np.sqrt(2), 8]
         ])
         
-    def get_cbfs(self, x: np.ndarray) -> np.ndarray:
+    def get_cbfs(self, x: np.ndarray, radius: float=3.0) -> np.ndarray:
         assert x.shape == (2,)
         return np.array([
-            sym.Polynomial(3.0**2 - (x[0] - each_point[0])**2 - (x[1] - each_point[1])**2)
+            sym.Polynomial(radius**2 - (x[0] - each_point[0])**2 - (x[1] - each_point[1])**2)
             for each_point in self.waypoints
         ])
     
@@ -60,16 +60,14 @@ class ExperimentSetup:
                 each_center,
                 radius,
                 facecolor='green',
-                edgecolor='green',
-                linestyle='-.',
-                linewidth=2,
+                edgecolor=None,
                 alpha=0.3
             )
             ax.add_patch(circle)
             ax.plot(
                 each_center[0],
                 each_center[1],
-                markersize=5,
+                markersize=7,
                 marker='o',
                 color=(0, 0.5, 0)
                 )

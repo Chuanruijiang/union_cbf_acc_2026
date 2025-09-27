@@ -94,42 +94,48 @@ def plot_examples():
     """
     Plot the the examples above for visualization. 
     """
-    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+    set_of_colors = ['green', 'blue', 'red']
+    fig1, ax1 = plt.subplots(figsize=(5, 5))
 
     # Plot sparse example
-    for each_center in sparse_centers:
+    for i in range(sparse_centers.shape[0]):
         circle = patches.Circle(
-            xy=each_center,
+            xy=sparse_centers[i, :],
             radius=sparse_radius,
-            edgecolor='green',
-            facecolor='green',
-            linestyle='-',
+            facecolor=set_of_colors[i],
             alpha=0.3
             )
-        axs[0].add_patch(circle)
+        ax1.add_patch(circle)
 
+    fig2, ax2 = plt.subplots(figsize=(5, 5))
     # Plot dense example
-    for each_center in dense_centers:
+    for i in range(dense_centers.shape[0]):
         circle = patches.Circle(
-            xy=each_center,
+            xy=dense_centers[i, :],
             radius=dense_radius,
-            edgecolor='green',
-            facecolor='green',
-            linestyle='-',
+            facecolor=set_of_colors[i],
             alpha=0.3
             )
-        axs[1].add_patch(circle)
+        ax2.add_patch(circle)
+    
+    legend_patches = [
+        patches.Patch(color=set_of_colors[0], alpha=0.3, label=r'$\mathcal{X}_1$'),
+        patches.Patch(color=set_of_colors[1], alpha=0.3, label=r'$\mathcal{X}_2$'),
+        patches.Patch(color=set_of_colors[2], alpha=0.3, label=r'$\mathcal{X}_3$'),
+    ]
 
-    axs[0].set_title("Sparse Layout of CBFs")
-    axs[0].set_xlim(-0.5, 0.5)
-    axs[0].set_ylim(-0.5, 0.5)
-    axs[0].set_xlabel(r"$x_1$", fontsize=16)
-    axs[0].set_ylabel(r"$x_2$", fontsize=16)
-    axs[1].set_title("Dense Layout of CBFs")
-    axs[1].set_xlim(-0.4, 0.4)
-    axs[1].set_ylim(-0.3, 0.5)
-    axs[1].set_xlabel(r"$x_1$", fontsize=16)
-    axs[1].set_ylabel(r"$x_2$", fontsize=16)
+    ax1.set_title("Sparse Layout of CBFs", fontsize=16)
+    ax1.set_xlim(-0.5, 0.5)
+    ax1.set_ylim(-0.4, 0.6)
+    ax1.set_xlabel(r"$x_1$", fontsize=16)
+    ax1.set_ylabel(r"$x_2$", fontsize=16)
+    ax1.legend(handles=legend_patches, fontsize=16)
+    ax2.set_title("Dense Layout of CBFs", fontsize=16)
+    ax2.set_xlim(-0.5, 0.5)
+    ax2.set_ylim(-0.4, 0.6)
+    ax2.set_xlabel(r"$x_1$", fontsize=16)
+    ax2.set_ylabel(r"$x_2$", fontsize=16)
+    ax2.legend(handles=legend_patches, fontsize=16)
 
 def verification_sparse():
     x = sym.MakeVectorContinuousVariable(2, "x")

@@ -214,21 +214,21 @@ def plot_computation_time_comparison():
 
     fig = plt.figure(figsize=(5, 5))
     ax = fig.add_subplot()
-    ax.plot(
-        cbf_num_axis,
-        thm2_computation_times,
-        marker='o',
-        linestyle='--',
-        color='blue',
-        label='Verification Time Verif-I'
-    )
+    # ax.plot(
+    #     cbf_num_axis,
+    #     thm2_computation_times,
+    #     marker='o',
+    #     linestyle='--',
+    #     color='blue',
+    #     label='Verification Time of Verif-I'
+    # )
     ax.plot(
         cbf_num_axis,
         thm3_computation_times,
         marker='s',
         linestyle='-',
         color='orange',
-        label='Verification Time Verif-II'
+        label='Verification Time of Verif-II'
     )
     ax.set_xlabel('Number of CBFs', fontsize=14)
     ax.set_ylabel('Computation Time (seconds)', fontsize=14)

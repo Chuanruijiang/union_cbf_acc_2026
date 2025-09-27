@@ -19,6 +19,7 @@ def plot_2D_function(
     with_contour: bool,
     color: str,
     contour_line_style='-',
+    contour_line_width: float=3,
     with_region_filled: bool=False,
     alpha: Optional[float]=None,
 ):
@@ -56,7 +57,7 @@ def plot_2D_function(
             levels=[0],
             colors=color,
             linestyles=contour_line_style,
-            linewidths=3
+            linewidths=contour_line_width
             )
     else:
         f_contour = None    

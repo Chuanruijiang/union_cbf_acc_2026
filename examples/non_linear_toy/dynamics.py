@@ -80,6 +80,27 @@ class NonlinearToyPlant(drake_sys_frame.LeafSystem):
         ])
         return f, g
 
+    def approximate_dynamics(
+            self,
+            x: np.ndarray
+        ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        This dynamics repalce the sin as the third order Taylor expansion
+        theta = x[0], gamma = x[1]
+        ̇x0 = u0,
+        ̇x1 = -x0 + x0^3/6 - u1
+        """
+        assert x.shape == (2,)
+        f = np.array([
+            sym.Polynomial(0),
+            sym.Polynomial(-x[0] + (x[0]**3)/6)
+        ])
+        g = np.array([
+            [sym.Polynomial(1), sym.Polynomial(0)],
+            [sym.Polynomial(0), sym.Polynomial(-1)]
+        ])
+        return f, g
+
     def state_eq_constraint(
         self,
         x: np.array

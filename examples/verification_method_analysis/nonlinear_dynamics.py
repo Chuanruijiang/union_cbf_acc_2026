@@ -6,6 +6,7 @@ from typing import Tuple
 class NonlinearToyPlant():
     def __init__(self):
         pass
+    
     def affine_dynamics(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         This function defines the system dyanmics of a single integrator.

@@ -61,10 +61,14 @@ def load_union_cbfs(x_set: sym.Variables) -> dict:
 
 def main():
     pi = np.pi
-    x = sym.MakeVectorContinuousVariable(3, "x")
+    # x = sym.MakeVectorContinuousVariable(3, "x")
+    # system_obj = NonlinearToyPlant()
+    # (f, g) = system_obj.affine_dynamics(x)
+    # state_eq_const = system_obj.state_eq_constraint(x)
+    # control_limits = system_obj.control_limits()
+    x = sym.MakeVectorContinuousVariable(2, "x")
     system_obj = NonlinearToyPlant()
-    (f, g) = system_obj.affine_dynamics(x)
-    state_eq_const = system_obj.state_eq_constraint(x)
+    (f, g) = system_obj.approximate_dynamics(x)
     control_limits = system_obj.control_limits()
 
 
@@ -93,7 +97,7 @@ def main():
         alpha=alpha,
         control_limits=control_limits,
         unsafe_polys=unsafe_polys,
-        state_eq_const=state_eq_const,
+        # state_eq_const=state_eq_const,
     )
     cbf_valid = union_obj.validity_verification_of_all_cbfs(
         unsafe_poly_lagrangian_x_degrees=[2]*unsafe_polys.shape[0],
@@ -108,8 +112,8 @@ def main():
         xi_y_lagrangian_y_degree=0,
         eta=eta,
         epsilon=epsilon,
-        state_eq_lagrangian_x_degree=2,
-        state_eq_lagrangian_y_degree=2
+        # state_eq_lagrangian_x_degree=2,
+        # state_eq_lagrangian_y_degree=2
     )
     union_feasible_thm3 = union_obj.verification_of_theorem_3(
         cbf_lagrangian_x_degree=2,
@@ -120,8 +124,8 @@ def main():
         xi_y_lagrangian_y_degree=0,
         eta=eta,
         epsilon=epsilon,
-        state_eq_lagrangian_x_degree=2,
-        state_eq_lagrangian_y_degree=2
+        # state_eq_lagrangian_x_degree=2,
+        # state_eq_lagrangian_y_degree=2
     )
 
     assert cbf_valid, \

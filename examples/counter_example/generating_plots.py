@@ -128,6 +128,8 @@ def main():
 
     ax.legend(handles=lengend_elements, fontsize=12, loc='right')
 
+    plt.show()
+
 
 
 if __name__ == "__main__":

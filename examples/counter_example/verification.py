@@ -3,8 +3,10 @@ In this script, we will verify a union of CBFs
 h1(x) = x0 + x1 + 1
 h2(x) = -x0 + x1 - 3
 h3(x) = 0.5(x0 + 3)(x0 + 1) - x1
-
 """
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 import numpy as np
 import pydrake.symbolic as sym

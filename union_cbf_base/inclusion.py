@@ -1,163 +1,64 @@
-from dataclasses import dataclass
+# """
+# This script develops the tools to check whether the region of the
+# union of CBFs X_c = {x | h₁(x) ≥ 0 or h₂(x) ≥ 0 or ... or hₘ(x) ≥ 0}
+# excludes the unsafe region X_u.
+
+# We provide two options:
+# 1. assume the unsafe region is presented by the intersection of
+#     0-super-level sets of a collection of polynomial functions.
+#     such that X_u = {x | l₁(x) ≤ 0, ..., lₙ(x) ≤ 0}.
+#     This assumption is valid when the unsafe region is: 
+#     (1) Polyhedral: Since any polyhedron can be presented by the
+#         intersection of a collection of half-spaces presented by
+#         hyperplanes. In this case,  each lᵢ(x) is a linear
+#         function.
+#     (2) Semialgebraic set: Since any semialgebraic set can be 
+#         presented by the intersection of a collection of 
+#         0-super-level sets of polynomial functions.
+# 2. assume the unsafe region is presented by a collection of
+#     unsafe points. As long as the number of unsafe points are
+#     sampled sufficiently. This assumption is valid for the following
+#     cases:
+#     (1) The actual unsafe region are presented by X_u = {x|f(x) ≤ 0}
+#         and f(x) has some complicated forms such as exponential,
+#         compositional, signed-distance or even NN.
+#     (2) The unsafe region is unknown but our sensor can provide some
+#         observed unsafe points from the unsafe region (e.g. Lidar).
+#     In such cases, we don't need to apply more l(x) polynomails to
+#     approximate the unsafe region boundary. We can directly use the 
+#     CBFs h(x) polynomials to excluded the unsafe points by evaluating
+#     each of the unsafe points and checking h(x) < 0.
+
+# For assumption 1, we create SOS constraints based on P-satz to verify
+# that the CBF is negative over the unsafe region.
+# Assume we have a cbf h(x), we hope that: 
+# for all x in the unsafe region, h(x) < 0.
+# This is equivalent to verifying that the set:
+# {x | -p₁(x) ≥ 0, ..., -pₙ(x) ≥ 0, h(x) ≥ 0}
+# is empty. 
+# Using P-satz, we have the following SOS constraint:
+# -1 + (∑ᵢ sᵢ(x)pᵢ(x)) - s_{n+1}(x) * h(x) is SOS
+# where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
+
+# For assumption 2, we simply evaluate all the cbf h(x) in the union over
+# all the unsafe points to check whether h(x) < 0 holds for all the unsafe
+# points.
+# """
+
 import numpy as np
-from typing import List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import List, Optional, Union
 from typing_extensions import Self
+
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
+
 from union_cbf_base.utils import (
     Degree,
     to_lagrangian_impl,
     get_polynomial_result,
     solve_with_id,
 )
-
-"""
-The following module creates SOS constraints for letting a 0-super-level set of a
-polynomial to include some specified points. Hence, given a set of sepcified points: 
-x_1,...,x_N. We would like to find the coefficients of the polynomial p(x) such that
-the following cost is zero:
-cost = sumᵢ₌₁ᴺ wᵢ*Relu(-p(xᵢ))
-where wᵢ is the weight for each point xᵢ.
-
-In order to get the SOS constraints, we can define a new group of decision variables
-p_relu to denote the Relu(-p(xᵢ)). We can then write the following SOS constraint:
-cost = sumᵢ₌₁ᴺ p_reluᵢ(x)
-constriant1: -p(x_i) <= p_relu_i(x) for all i
-constriant2: 0 <= p_relu_i(x) <= inf for all i
-
-For constraint1, since each x_i is known and p(x) is a polynomial, then each p(x_i)
-can be written as: p(x_i) = aᵢᵀθₚ + bᵢ where aᵢ is a contant vector, bᵢ is a
-constant scalar, and θₚ are the coefficients of p(x).
-Noted that we have N number of x_i, then we have:
-[p(x₁), p(x₂), ..., p(x_N)]ᵀ = A * θₚ + b 
-where A is a matrix of with each row being aᵢᵀ and b is a vector of bᵢ. 
-Hence, letting p_relu = [p_relu₁, p_relu₂, ..., p_relu_N]ᵀ, we can write the
-constraint1 as:
--A * θₚ - b <= p_relu
-since p_relu and θₚ are both decision variables, we can put them
-together as:
--b < = [A, I] * [θₚᵀ, p_reluᵀ]ᵀ
-
-According to the constraint2, each p_relu_i has inf as the upper bound. We can put 
-contraint2 and constriant1 together as:
--b <= [A, I] * [θₚᵀ, p_reluᵀ]ᵀ <= inf
-where inf here is a vector with the same size as p_relu and vector b.
-
-To summarize, the conditions for the polynomial p(x) to include the points
-x_1,...,x_N are:
-1. The cost function is zero
-    sumᵢ₌₁ᴺ wᵢ*p_relu_i = 0
-2. The constraints:
-    b <= [A, I] * [θₚᵀ, p_reluᵀ]ᵀ <= inf
-
-We may also want to let the p(x) not exceed a certain value at some points. We can
-specify the upper and lower bound of p(x) at these points. We call these points 
-anchor points. Assume there are M anchor points, for each anchor point x_j, we want
-the polynomial p(x) to be in the range [lower_bound, upper_bound]. We can write the
-following constraints:
-lower_bound <= p(x_j) <= upper_bound
-"""
-
-@dataclass
-class PointsInclusionConstriants:
-    # the indeterminates of the polynomial:
-    x: np.ndarray
-    # the polynomial that includes theses points in the 0-super-level set
-    p: sym.Polynomial
-    # the points to be included, this array should only have 2 axis
-    # axis 0: is the number of points
-    # axis 1: is the number of dimensions of the points
-    points_to_include: np.ndarray
-    # the lower and upper bound of p(x) at the anchor points. This term should be a
-    # tuple with 2 arrays. The first array is the lower bounds and the second is the
-    # upper bounds. Each array is a 1D array with the same size as the number of
-    # anchor points.
-    point_inclusion_weights: np.ndarray
-    # the set of anchor points. This is an array with 2 axis
-    # axis 0: is the number of anchor points
-    # axis 1: is the number of dimensions of the anchor points
-    anchor_points: Optional[np.ndarray]
-    # these are the weights in the loss function for the points inclusion. The size
-    # of this array should be the same as the number of points to be included.
-    p_anchor_bounds: Optional[Tuple[np.ndarray, np.ndarray]]
-    # if the following term is not zero, then we want the 0-super-level set of
-    # p(x) + bias to include the points
-    bias: float = 0
-    # if the following term is not zero, then we want all the points to be included
-    # in the interior of the 0-super-level set of p(x), i.e. p(x) > 0
-    # thie means that we want the 0-super-level set of p(x) - margin to include
-    # these points
-    margin: float = 0
-    # Hence, if the bias and margin are both non-zero, the then p_relu will be:
-    # -(p(x) + bias - margin) <= p_relu
-
-    def add_to_prog(
-        self, prog: solvers.MathematicalProgram
-    ) -> Tuple[solvers.Binding[solvers.LinearCost], np.ndarray]:
-        assert len(self.points_to_include.shape) == 2
-        num_included_points = self.points_to_include.shape[0]
-        assert self.point_inclusion_weights.shape[0] == num_included_points
-        assert self.margin >= 0
-
-        p_relu = prog.NewContinuousVariables(num_included_points, "p_relu")
-        prog.AddBoundingBoxConstraint(0, np.inf, p_relu)
-        (Ap, theta_p, bp) = self.p.EvaluateWithAffineCoefficients(
-            indeterminates=self.x, indeterminates_values=self.points_to_include.T
-        )
-
-        prog.AddLinearConstraint(
-            A=np.concatenate([Ap, np.eye(num_included_points)], axis=1),
-            lb=-bp - self.bias + self.margin,
-            ub=np.full_like(bp, np.inf),
-            vars=np.concatenate([theta_p, p_relu]),
-        )
-
-        cost_coeff = self.point_inclusion_weights
-        cost_vars = p_relu
-        cost = prog.AddLinearCost(cost_coeff, 0.0, cost_vars)
-
-        return cost, p_relu
-
-    def add_anchor_bound_to_prog(
-        self,
-        prog: solvers.MathematicalProgram,
-    ) -> Optional[solvers.Binding[solvers.LinearConstraint]]:
-        if self.anchor_points is not None and self.p_anchor_bounds is not None:
-            assert len(self.anchor_points.shape) == 2
-            num_anchor_points = self.anchor_points.shape[0]
-            assert len(self.p_anchor_bounds) == 2
-            assert self.p_anchor_bounds[0].shape[0] == num_anchor_points
-            assert self.p_anchor_bounds[1].shape[0] == num_anchor_points
-
-            (Ap, theta_p, bp) = self.p.EvaluateWithAffineCoefficients(
-                indeterminates=self.x, indeterminates_values=self.anchor_points.T
-            )
-
-            constraint = prog.AddLinearConstraint(
-                A=Ap,
-                lb=self.p_anchor_bounds[0] - bp,
-                ub=self.p_anchor_bounds[1] - bp,
-                vars=theta_p,
-            )
-            return constraint
-        else:
-            return None
-
-
-"""
-The following module creates SOS constraints for excluding unsafe region
-presented by the intersection of 0-super-level sets of a collection of
-polynomial functions. Given a set of polynomial functions p₁(x), ..., pₙ(x)
-the unsafe region is the region: {x| p₁(x) ≤ 0, ..., pₙ(x) ≤ 0}.
-Now, assume we have a cbf h(x), we hope that: 
-for all x in the unsafe region, h(x) < 0.
-This is equivalent to verifying that the set:
-{x | -p₁(x) ≥ 0, ..., -pₙ(x) ≥ 0, h(x) ≥ 0}
-is empty. 
-Using P-satz, we have the following SOS constraint:
--1 + (∑ᵢ sᵢ(x)pᵢ(x)) - s_{n+1}(x) * h(x) is SOS
-where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
-"""
 
 @dataclass
 class UnsafeRegionExclusionLagrangians:
@@ -220,24 +121,17 @@ class UnsafeRegionExclusionLagrangianDegrees:
 
 
 class UnsafeExclusion:
-    def __init__(self, unsafe_polys: np.ndarray, h: sym.Polynomial, x: np.ndarray):
+    def __init__(
+        self,
+        h: sym.Polynomial,
+        x: np.ndarray,
+        unsafe_polys: Optional[np.ndarray],
+        unsafe_points: Optional[np.ndarray],
+    ):
         self.unsafe_polys = unsafe_polys
+        self.unsafe_points = unsafe_points
         self.h = h
         self.x = x
-
-    def add_unsafe_exclusion_constraint(
-        self,
-        prog: solvers.MathematicalProgram,
-        unsafe_exclusion_lagrangians: UnsafeRegionExclusionLagrangians,
-        *,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> sym.Polynomial:
-        h = self.h
-        poly = -sym.Polynomial(1)
-        poly += unsafe_exclusion_lagrangians.unsafe_polys.dot(self.unsafe_polys)
-        poly -= unsafe_exclusion_lagrangians.h * h
-        prog.AddSosConstraint(poly, sos_type)
-        return poly
 
     def verify_unsafe_exclusion(
         self,
@@ -248,6 +142,7 @@ class UnsafeExclusion:
         coefficient_tol: Optional[float] = None,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> Union[bool, UnsafeRegionExclusionLagrangians]:
+        assert self.unsafe_polys is not None
         assert len(unsafe_poly_x_degrees) == self.unsafe_polys.shape[0]
 
         prog = solvers.MathematicalProgram()
@@ -264,7 +159,7 @@ class UnsafeExclusion:
         unsafe_exclusion_lagrangians = unsafe_exclusion_degree.to_lagrangians(
             prog, x_set, sos_type=sos_type
         )
-        self.add_unsafe_exclusion_constraint(
+        self._add_unsafe_exclusion_constraint(
             prog, unsafe_exclusion_lagrangians, sos_type=sos_type
         )
 
@@ -279,49 +174,34 @@ class UnsafeExclusion:
         else:
             return result.is_success()
 
-    def add_exclusion_const_for_search_cbf(
-        self,
-        prog: solvers.MathematicalProgram,
-        x_set: sym.Variables,
-        unsafe_polys_lagrangian_x_degree: List[int],
-        solved_lagrangians: UnsafeRegionExclusionLagrangians,
-        *,
-        sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> UnsafeRegionExclusionLagrangians:
+    def verify_unsafe_point_exclusion(self):
         """
-        In the safety SOS constriant, only the h itself is h-related.
-        all the other unsafe polys are fixed during the CBF synthesis.
-        Hence, the lagrangian multipliers for unsafe polys should be
-        newly created unsolved lagrangians, and the lagrangian
-        multiplier for h should come from the verification computation
-        results.
+        checking whether h(x) < 0 for all the unsafe points
+        """
+        assert self.unsafe_points is not None
+        assert len(self.unsafe_points.shape) == 2
+        h_values = self.h.EvaluateIndeterminates(
+            indeterminates=self.x,
+            indeterminates_values=self.unsafe_points.T
+        )
+        binary_flags = (h_values < 0)
+        return np.all(binary_flags==1)
 
-        if we call this function, then we need to make sure that self.h
-        is an unsolved CBF polynomial.
-        """
-        assert len(unsafe_polys_lagrangian_x_degree) \
-            == self.unsafe_polys.shape[0]
-        unsafe_exclusion_degree = UnsafeRegionExclusionLagrangianDegrees(
-            unsafe_polys=[
-                Degree(
-                    x=unsafe_polys_lagrangian_x_degree[i],
-                    y=0,
-                    c=0
-                    )
-                for i in range(self.unsafe_polys.shape[0])
-            ],
-            h=Degree(x=0, y=0, c=0),
-        )
-        unsafe_exclusion_lagrangians = unsafe_exclusion_degree.to_lagrangians(
-            prog,
-            x_set,
-            sos_type=sos_type,
-            unsafe_poly_lagrangians=None,
-            h_lagrangian=solved_lagrangians.h,
-        )
-        self.add_unsafe_exclusion_constraint(
-            prog,
-            unsafe_exclusion_lagrangians,
-            sos_type=sos_type
-        )
-        return unsafe_exclusion_lagrangians
+    def _add_unsafe_exclusion_constraint(
+            self,
+            prog: solvers.MathematicalProgram,
+            unsafe_exclusion_lagrangians: UnsafeRegionExclusionLagrangians,
+            *,
+            sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
+        ) -> sym.Polynomial:
+            """
+            This function adds the following SOS constraint for safe exclusion:
+            -1 + (∑ᵢ sᵢ(x)pᵢ(x)) - s_{n+1}(x) * h(x) is SOS
+            where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
+            """
+            h = self.h
+            poly = -sym.Polynomial(1)
+            poly += unsafe_exclusion_lagrangians.unsafe_polys.dot(self.unsafe_polys)
+            poly -= unsafe_exclusion_lagrangians.h * h
+            prog.AddSosConstraint(poly, sos_type)
+            return poly

@@ -104,9 +104,9 @@ def test_lie_derivative():
     expected_output3 = sym.Polynomial(
         2 * x[1] * x[0] ** 3 + 2 * x[0] ** 2 * x[1] ** 2 + 2 * x[0] * x[1] ** 3
     )
-    output1 = mut.lie_derivative(poly=b1, vector_feild=f, variables=x, pow=pow1)
-    output2 = mut.lie_derivative(poly=b2, vector_feild=f, variables=x, pow=pow2)
-    output3 = mut.lie_derivative(poly=b3, vector_feild=f, variables=x, pow=pow3)
+    output1 = mut.lie_derivative(poly=b1, vector_field=f, variables=x, pow=pow1)
+    output2 = mut.lie_derivative(poly=b2, vector_field=f, variables=x, pow=pow2)
+    output3 = mut.lie_derivative(poly=b3, vector_field=f, variables=x, pow=pow3)
     assert output1.EqualTo(expected_output1)
     assert output2.EqualTo(expected_output2)
     assert output3.EqualTo(expected_output3)

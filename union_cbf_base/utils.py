@@ -122,17 +122,17 @@ def elementary_symetric_polynomials(input: Optional[list]) -> np.ndarray:
 
 
 def lie_derivative(
-    poly: sym.Polynomial, vector_feild: np.ndarray, variables: np.ndarray, pow: int
+    poly: sym.Polynomial, vector_field: np.ndarray, variables: np.ndarray, pow: int
 ) -> Union[sym.Polynomial, np.ndarray]:
     """
     compute the n-power lie derivative of a polynomial with respect to the
-    vector feild f. The output should be Lf^nb(x), where the b(x) is the
-    input polynomial, and f(x), the vector feild, is an array of polynomials.
+    vector field f. The output should be Lf^nb(x), where the b(x) is the
+    input polynomial, and f(x), the vector field, is an array of polynomials.
     Both f(x) and b(x) are based on x variables.
 
     Args:
     poly: the input polynomial b(x)
-    vector_feild: the vector feild f(x), an array of polynomials
+    vector_field: the vector field f(x), an array of polynomials
     variables: the variables x
     pow: the power of the lie derivative
     """
@@ -142,7 +142,7 @@ def lie_derivative(
         return temp_x
     elif pow >= 1:
         for i in range(1, pow + 1):
-            temp_x = np.dot(temp_x.Jacobian(variables), vector_feild)
+            temp_x = np.dot(temp_x.Jacobian(variables), vector_field)
         return temp_x
     else:
         assert pow >= 0, "power of lie derivative should not be negative"
@@ -181,7 +181,7 @@ def lower_lie_derivatives(
         lie_derivatives = np.array(
             [
                 lie_derivative(
-                    poly=poly, vector_feild=vector_field, variables=variables, pow=j
+                    poly=poly, vector_field=vector_field, variables=variables, pow=j
                 )
                 for j in range(i, -1, -1)
             ]

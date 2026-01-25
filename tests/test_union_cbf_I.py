@@ -1,18 +1,16 @@
-from union_cbf_base.union_cbf import (
-    UnionCbf,
-    SubsetFeasibilityLagrangian,
+import numpy as np
+import pydrake.symbolic as sym
+
+from union_cbf_base.union_cbf_I import (
+    UnionCbfI,
+    SubsetGeneralLagrangianDegrees,
     SubsetFeasibilityLagrangianDegrees
 )
-from union_cbf_base.non_empty_subset import(
-    Subset
-)
+from union_cbf_base.non_empty_subset import Subset
 from union_cbf_base.utils import(
     Degree,
     check_polynomial_arrays_equal
 )
-import numpy as np
-
-import pydrake.symbolic as sym
 
 
 def test_get_non_empty_subsets():
@@ -38,10 +36,10 @@ def test_get_non_empty_subsets():
             sym.Polynomial((0.4) ** 2 - (x[0] + 0.5) ** 2 - (x[1] - 0) ** 2),
         ]
     )
-    test_obj = UnionCbf(x=x, f=f, g=g, cbfs=cbfs, alpha=0.1, control_limits=(A, c))
-    activation_masks = test_obj.all_possible_subsets()
+    test_obj = UnionCbfI(x=x, f=f, g=g, alpha=0.1, control_limits=(A, c))
+    all_subsets = test_obj.all_possible_subsets(cbfs=cbfs)
     non_empty_subsets = test_obj.get_non_empty_subsets(
-        all_subsets_mask=activation_masks
+        all_subsets=all_subsets
     )
     assert (non_empty_subsets[0].activation_index == np.array([0, 1])).all()
     assert (non_empty_subsets[1].activation_index == np.array([1, 0])).all()
@@ -72,12 +70,12 @@ def test_compute_xi_lambda():
     alpha = 0.1
     eta = 0.1
     epsilon = 0.01
-    test_obj = UnionCbf(x=x, f=f, g=g, cbfs=cbfs, alpha=alpha, control_limits=(A, c))
-    subset = Subset(x=x, cbfs=cbfs, activation_index=np.array([1, 1]))
+    test_obj = UnionCbfI(x=x, f=f, g=g, alpha=alpha, control_limits=(A, c))
+    subset = Subset(x=x, all_polys=cbfs, activation_index=np.array([1, 1]))
     (lambda_list, xi_list) = test_obj._lambda_xi(
         subset=subset,
         eta=eta,
-        epsilon=epsilon,
+        eps=epsilon,
     )
 
     expected_lambda_list = [
@@ -153,39 +151,45 @@ def test_construct_lagrangian_degrees():
         ]
     )
     alpha = 0.1
-    test_obj = UnionCbf(x=x, f=f, g=g, cbfs=cbfs, alpha=alpha, control_limits=(A, c))
-    test_subset = Subset(x=x, cbfs=cbfs, activation_index=np.array([1, 1]))
-    test_subset_lagrangian_degree = test_obj._construct_lagrangian_degrees(
-        subset=test_subset,
-        cbf_lagrangian_x_degree=1,
-        cbf_lagrangian_y_degree=2,
-        lambda_y_lagrangian_x_degree=3,
-        lambda_y_lagrangian_y_degree=4,
-        xi_y_lagrangian_x_degree=5,
-        xi_y_lagrangian_y_degree=6
+    test_obj = UnionCbfI(x=x, f=f, g=g, alpha=alpha, control_limits=(A, c))
+    test_subset = Subset(x=x, all_polys=cbfs, activation_index=np.array([1, 1]))
+    subset_general_lagrangian_degree = SubsetGeneralLagrangianDegrees(
+        num_control_inputs=test_obj.n_u,
+        cbfs_lagrangian_x_degree=1,
+        cbfs_lagrangian_y_degree=2,
+        lambda_lagrangian_x_degree=3,
+        lambda_lagrangian_y_degree=4,
+        xi_lagrangian_x_degree=5,
+        xi_lagrangian_y_degree=6
     )
+    (
+        test_subset_lagrangian_degree 
+    )= subset_general_lagrangian_degree.construct_lagrangian_degrees(
+        subset=test_subset
+    )
+    
     assert isinstance(test_subset_lagrangian_degree, SubsetFeasibilityLagrangianDegrees)
-    assert len(test_subset_lagrangian_degree.s0) == cbfs.shape[0]
-    assert len(test_subset_lagrangian_degree.s_lambda_y) == 2
-    assert len(test_subset_lagrangian_degree.q_xi_y) == 2
-    for each_s0 in test_subset_lagrangian_degree.s0:
-        assert isinstance(each_s0, Degree)
-        assert each_s0.x == 1
-        assert each_s0.y == 2
-        assert each_s0.c == 0
-    for each_s_lambda_y in test_subset_lagrangian_degree.s_lambda_y:
-        assert isinstance(each_s_lambda_y, list)
-        assert len(each_s_lambda_y) == test_obj.n_u
-        for each_element in each_s_lambda_y:
+    assert len(test_subset_lagrangian_degree.cbfs) == cbfs.shape[0]
+    assert len(test_subset_lagrangian_degree.lambda_y) == 2
+    assert len(test_subset_lagrangian_degree.xi_y) == 2
+    for cbf_lagrangian_degree in test_subset_lagrangian_degree.cbfs:
+        assert isinstance(cbf_lagrangian_degree, Degree)
+        assert cbf_lagrangian_degree.x == 1
+        assert cbf_lagrangian_degree.y == 2
+        assert cbf_lagrangian_degree.c == 0
+    for lambda_y_degree in test_subset_lagrangian_degree.lambda_y:
+        assert isinstance(lambda_y_degree, list)
+        assert len(lambda_y_degree) == test_obj.n_u
+        for each_element in lambda_y_degree:
             assert isinstance(each_element, Degree)
             assert each_element.x == 3
             assert each_element.y == 4
             assert each_element.c == 0
-    for each_q_xi_y in test_subset_lagrangian_degree.q_xi_y:
-        assert isinstance(each_q_xi_y, Degree)
-        assert each_q_xi_y.x == 5
-        assert each_q_xi_y.y == 6
-        assert each_q_xi_y.c == 0
+    for xi_y_degree in test_subset_lagrangian_degree.xi_y:
+        assert isinstance(xi_y_degree, Degree)
+        assert xi_y_degree.x == 5
+        assert xi_y_degree.y == 6
+        assert xi_y_degree.c == 0
 
 def test_construct_x_y_sets():
     x = sym.MakeVectorContinuousVariable(2, "x")
@@ -212,8 +216,8 @@ def test_construct_x_y_sets():
         ]
     )
     alpha = 0.1
-    test_obj = UnionCbf(x=x, f=f, g=g, cbfs=cbfs, alpha=alpha, control_limits=(A, c))
-    test_subset = Subset(x=x, cbfs=cbfs, activation_index=np.array([1, 1, 1]))
+    test_obj = UnionCbfI(x=x, f=f, g=g, alpha=alpha, control_limits=(A, c))
+    test_subset = Subset(x=x, all_polys=cbfs, activation_index=np.array([1, 1, 1]))
     num_activated = 3
     test_xy_sets = test_obj._construct_x_y_sets(subset=test_subset)
     assert len(test_xy_sets) == 4
@@ -245,7 +249,7 @@ def test_construct_x_y_sets():
         for each_element in each_y_squared_poly:
             assert isinstance(each_element, sym.Polynomial)
 
-    test_subset = Subset(x=x, cbfs=cbfs, activation_index=np.array([1, 0, 0]))
+    test_subset = Subset(x=x, all_polys=cbfs, activation_index=np.array([1, 0, 0]))
     num_activated = 1
     test_xy_sets = test_obj._construct_x_y_sets(subset=test_subset)
     assert isinstance(test_xy_sets[2], list)
@@ -286,79 +290,32 @@ def test_check_feasibility_in_subset():
     alpha = 0.1
     eta = 1e-2
     epsilon = 0.01
-    test_obj = UnionCbf(
+    test_obj = UnionCbfI(
         x = x,
         f = f,
         g = g,
-        cbfs = cbfs,
         alpha=alpha,
         control_limits=(A, c)
     )
     subset = Subset(
         x=x,
-        cbfs=cbfs,
+        all_polys=cbfs,
         activation_index=np.array([1, 0, 0, 0])
+    )
+    general_degrees = SubsetGeneralLagrangianDegrees(
+        num_control_inputs=test_obj.n_u,
+        cbfs_lagrangian_x_degree=2,
+        cbfs_lagrangian_y_degree=2,
+        lambda_lagrangian_x_degree=2,
+        lambda_lagrangian_y_degree=0,
+        xi_lagrangian_x_degree=2,
+        xi_lagrangian_y_degree=0,
     )
     test_success = test_obj.check_feasibility_in_subset(
         subset=subset,
-        cbf_lagrangian_x_degree=2,
-        cbf_lagrangian_y_degree=2,
-        lambda_y_lagrangian_x_degree=2,
-        lambda_y_lagrangian_y_degree=0,
-        xi_y_lagrangian_x_degree=2,
-        xi_y_lagrangian_y_degree=0,
+        lagrangian_degrees=general_degrees,
         eta=eta,
-        epsilon=epsilon,
-    )
-
-    assert test_success
-
-def test_check_simplified_feasibility():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    f = np.array([
-        sym.Polynomial(0), sym.Polynomial(0)
-    ])
-    g = np.array([
-        [sym.Polynomial(1), sym.Polynomial(0)],
-        [sym.Polynomial(0), sym.Polynomial(1)]
-    ])
-    A = np.array([
-        [sym.Polynomial(1), sym.Polynomial(0)], 
-        [sym.Polynomial(0), sym.Polynomial(1)], 
-        [sym.Polynomial(-1), sym.Polynomial(0)], 
-        [sym.Polynomial(0), sym.Polynomial(-1)]
-    ])
-    c = np.array([
-        sym.Polynomial(1), 
-        sym.Polynomial(1), 
-        sym.Polynomial(1), 
-        sym.Polynomial(1)
-    ])
-    cbfs = np.array([
-        sym.Polynomial((0.6)**2 - (x[0]-0.5)**2 - (x[1] - 0)**2),
-        sym.Polynomial((0.6)**2 - (x[0]+0.5)**2 - (x[1] - 0)**2)
-    ])
-    alpha = 0.1
-    eta = 1e-2
-    epsilon = 0.01
-    test_obj = UnionCbf(
-        x = x,
-        f = f,
-        g = g,
-        cbfs = cbfs,
-        alpha=alpha,
-        control_limits=(A, c)
-    )
-    test_success = test_obj.check_simplified_feasibility(
-        cbf_index=0,
-        cbf_lagrangian_x_degree=2,
-        cbf_lagrangian_y_degree=2,
-        lambda_y_lagrangian_x_degree=2,
-        lambda_y_lagrangian_y_degree=2,
-        xi_y_lagrangian_x_degree=2,
-        xi_y_lagrangian_y_degree=2,
-        eta=eta,
-        epsilon=epsilon,
+        eps=epsilon,
     )
 
     assert test_success

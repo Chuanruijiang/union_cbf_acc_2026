@@ -473,6 +473,7 @@ class UnionCbfI:
         eta: float,
         eps: float,
         *,
+        show_output: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> bool:
         """
@@ -484,16 +485,32 @@ class UnionCbfI:
         non_empty_subsets = self.get_non_empty_subsets(
             all_subsets=all_subsets,
         )
+        if show_output:
+            print(
+                f"Total number of non-empty subsets: {len(non_empty_subsets)}"
+            )
         # Step 3: check feasibility for each non-empty subset
         for subset in non_empty_subsets:
-            if not self.check_feasibility_in_subset(
+            if show_output:
+                print(
+                    f"Checking feasibility condition in subset with \
+                    activation index: {subset.activation_index}"
+                )
+            feasible_in_subset = self.check_feasibility_in_subset(
                 subset=subset,
                 lagrangian_degrees=lagrangian_degrees,
                 eta=eta,
                 eps=eps,
                 sos_type=sos_type,
-            ):
+            )
+            if not feasible_in_subset:
+                if show_output:
+                    print(
+                        "Feasibility condition failed in this subset."
+                    )
                 return False
+        if show_output:
+            print("Feasibility condition passed for all non-empty subsets.")
         return True
 
     def _lambda_xi(

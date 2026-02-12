@@ -58,7 +58,7 @@ def test_compute_xi_lambda():
         alpha=alpha,
         cbf=cbfs[0],
         eta=eta,
-        epsilon=epsilon,
+        eps=epsilon,
     )
     check_polynomial_arrays_equal(computed_lambda, expected_lambda, tol=1e-8)
     check_polynomial_arrays_equal(computed_xi, expected_xi, tol=1e-8)
@@ -84,7 +84,7 @@ def test_compute_xi_lambda():
         alpha=alpha,
         cbf=cbfs[1],
         eta=eta,
-        epsilon=epsilon,
+        eps=epsilon,
     )
     check_polynomial_arrays_equal(computed_lambda, expected_lambda, tol=1e-8)
     check_polynomial_arrays_equal(computed_xi, expected_xi, tol=1e-8)

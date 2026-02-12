@@ -6,9 +6,9 @@ import matplotlib.axes
 import matplotlib.contour
 import matplotlib.pyplot as plt
 import pydrake.symbolic as sym
-from typing import Tuple, Union, Optional
+from typing import Tuple, Union, Optional, List
 
-
+# basic blocks
 def plot_2D_function(
     ax: matplotlib.axes.Axes,
     f: Union[sym.Polynomial, np.ndarray],
@@ -189,37 +189,74 @@ def plot_compatible_region(
     )
 
     return compatible_region
-    
+
+# plotting functions for union of CBFs
+def plot_unsafe_region(
+    ax: plt.Axes,
+    x_states: np.ndarray,
+    unsafe_regions: List[np.ndarray],
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+):
+    assert isinstance(unsafe_regions, List)
+    for each_intersection_unsafe_region in unsafe_regions:
+        plot_intersection_region(
+            ax=ax,
+            p=each_intersection_unsafe_region,
+            x=x_states[0:2],
+        x_range=x_range,
+        y_range=y_range,
+        sampling_rate=500,
+        color="grey",
+        alpha=1.0
+    )
+
+def plot_cbf_boundaries(
+    ax: plt.Axes,
+    x_states: np.ndarray,
+    switching_cbfs: np.ndarray,
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float]
+):
+    for h_i in switching_cbfs:
+        plot_2D_function(
+            ax=ax,
+            f=h_i,
+            x=x_states[0:2],
+            x_range=x_range,
+            y_range=y_range,
+            with_contour=True,
+            color="black",
+            contour_line_style="--",
+            contour_line_width=1,
+            sampling_rate=500
+        )
+
+def plot_simulation_results(
+    ax: plt.Axes,
+    state_data: np.ndarray,
+):
+    """
+    Plot the simulated trajectories.
+    """
+    ax.plot(
+        state_data[0, :], state_data[1, :],
+        label="Simulation Positional Trajectory",
+        color="blue"
+    )
+
+def plot_signal_time_records(
+    ax: plt.Axes,
+    signal_data: np.ndarray,
+    time_data: np.ndarray
+):
+    """
+    Plot the action and time records.
+    """
+    ax.plot(
+        time_data,
+        signal_data,
+        color="blue"
+    )
 
 
-# def main():
-#     x = sym.MakeVectorContinuousVariable(2, "x")
-#     unsafe_polys = np.array([
-#         sym.Polynomial(x[0] + 5),
-#         sym.Polynomial(-x[0] - 3),
-#         sym.Polynomial(x[1] + 1),
-#         sym.Polynomial(-x[1] + 1),
-#     ])
-#     fig = plt.figure()
-#     ax = fig.add_subplot()
-#     ax.set_xlabel(r"$x_1$", fontsize=16)
-#     ax.set_ylabel(r"$x_2$", fontsize=16)
-#     ax.set_xticks([-15, -10, -5, 0, 5])
-#     ax.set_yticks([-10, -5, 0, 5, 10])
-#     ax.set_xticklabels([r"-15", r"-10", r"-5", r"0", r"5"], fontsize=16)
-#     ax.set_yticklabels([r"-10", r"-5", r"0", r"5", r"10"], fontsize=16)
-#     ax.set_xlim(-15, 5)
-#     ax.set_ylim(-5, 5)
-#     # plot the unsafe region:
-#     unsafe_region = plot_intersection_region(
-#         ax=ax,
-#         p=unsafe_polys,
-#         x=x,
-#         x_range=(-15, 5),
-#         y_range=(-5, 5),
-#         sampling_rate=1000
-#     )
-#     fig.show()
-
-# if __name__ == "__main__":
-#     main()

@@ -62,9 +62,11 @@ from union_cbf_base.utils import (
 
 @dataclass
 class UnsafeRegionExclusionLagrangians:
-    # The array of polynomials presenting lagrangains for p(x)s above
+    # unsafe_polys: the lagrangian polynomials for the unsafe region polynomials 
+    # p_i(x) ≤ 0 (The s_i(x) matrices in the comments above).
     unsafe_polys: np.ndarray
-    # The lagrangian for the cbf function
+    # h: the lagrangian polynomial for the cbf polynomial h(x) ≥ 0 
+    # (The s_{n+1}(x) polynomial in the comments above).
     h: sym.Polynomial
 
     def get_results(
@@ -176,7 +178,7 @@ class UnsafeExclusion:
 
     def verify_unsafe_point_exclusion(self):
         """
-        checking whether h(x) < 0 for all the unsafe points
+        check whether h(x) < 0 for all the unsafe points
         """
         assert self.unsafe_points is not None
         assert len(self.unsafe_points.shape) == 2

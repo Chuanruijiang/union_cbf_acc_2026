@@ -38,13 +38,8 @@ from union_cbf_base.utils import (
     get_polynomial_result,
     solve_with_id,
     lie_derivative,
-    lower_lie_derivatives,
-    elementary_symetric_polynomials,
     Degree,
     to_lagrangian_impl,
-)
-from union_cbf_base.non_empty_subset import (
-    Subset
 )
 
 @dataclass

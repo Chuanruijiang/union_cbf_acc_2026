@@ -1,14 +1,19 @@
-"""
-In this file, we define the experiment setup for trajectory tracking tasks.
-We are given an environment with:
-static obstacles, 
-a starting postion,
-a goal position,
-and also a reference trajectory (a collection of waypoints)
-to follow.
+# """
+# In this file, we define the experiment setup for union CBF
+# verification comparison tasks.
+# We define a union of 11 sparsely located circular CBFs, with
+# each of them has the same radius. The whole setup is defined
+# in a ExperimentSetup class, which has a method to return the
+# CBFs as array of sym.Polynomials given the state of the
+# system. 
+# 
+# This script only defines the experiment setup, and the
+# verification comparison with be conducted in another script.
+# 
+# In order to check these circular CBFs, we can use the main()
+# in this script to visualize the environment setup.
+# """
 
-We also provide a union of collection of CBFs:
-"""
 import numpy as np
 import pydrake.symbolic as sym
 from typing import Optional
@@ -64,11 +69,10 @@ class ExperimentSetup:
             ax.plot(
                 each_center[0],
                 each_center[1],
-                markersize=7,
+                markersize=3,
                 marker='o',
                 color=(0, 0.5, 0)
                 )
-
 
 def main():
     """

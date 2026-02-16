@@ -215,7 +215,7 @@ def verification_with_verif_II(
         lambda_y=[DegreeII(x=2, y=0, c=0)]*num_controls,
         xi_y=DegreeII(x=2, y=0, c=0)
     )
-    verfication_flag = union_object.verification_feasibility_condition_II(
+    (verfication_flag, _) = union_object.verification_feasibility_condition_II(
         union_cbfs=cbfs,
         lagrangian_degrees=lagrangian_degrees,
         eta=1e-4,
@@ -260,7 +260,7 @@ def verification_with_verif_I(
         xi_lagrangian_x_degree=2,
         xi_lagrangian_y_degree=0
     )
-    verfication_flag = union_object.verification_feasibility_condition_I(
+    (verfication_flag, _) = union_object.verification_feasibility_condition_I(
         union_cbfs=cbfs,
         lagrangian_degrees=lagrangian_degrees,
         eta=1e-4,

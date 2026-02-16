@@ -1,5 +1,3 @@
-
-
 import os
 import pickle
 import numpy as np
@@ -52,6 +50,8 @@ def main():
     fig, ax = plt.subplots(
         #figsize=(6/1.2, 4.5/1.2)
     )
+    ax.set_xlim(x_low, x_high)
+    ax.set_ylim(y_low, y_high)
 
     # load and plot the unsafe region
     filename = "unsafe_region_and_cbfs.pkl"

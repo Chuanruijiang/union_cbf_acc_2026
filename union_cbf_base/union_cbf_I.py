@@ -457,7 +457,7 @@ class UnionCbfI:
         *,
         record_time: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ):
+    ) -> Tuple[bool, Optional[float]]:
         prog = self.construct_feasibility_in_subset_prog(
             subset=subset,
             lagrangian_degrees=lagrangian_degrees,
@@ -471,7 +471,8 @@ class UnionCbfI:
         if record_time:
             end_time = time.time()
             print(f"Time taken for feasibility check: {end_time - start_time} seconds")
-        return result.is_success()
+            return result.is_success(), end_time - start_time
+        return result.is_success(), None
 
     def verification_feasibility_condition_I(
         self,
@@ -483,7 +484,7 @@ class UnionCbfI:
         show_output: bool = True,
         show_verification_time: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ) -> bool:
+    ) -> Tuple[bool, Optional[float]]:
         """
         This function realizes the pipeline of Verif-I
         """
@@ -498,13 +499,14 @@ class UnionCbfI:
                 f"Total number of non-empty subsets: {len(non_empty_subsets)}"
             )
         # Step 3: check feasibility for each non-empty subset
+        total_verif_time = 0
         for subset in non_empty_subsets:
             if show_output:
                 print(
                     f"Checking feasibility condition in subset with \
                     activation index: {subset.activation_index}"
                 )
-            feasible_in_subset = self.check_feasibility_in_subset(
+            (feasible_in_subset, verif_time) = self.check_feasibility_in_subset(
                 subset=subset,
                 lagrangian_degrees=lagrangian_degrees,
                 eta=eta,
@@ -512,15 +514,16 @@ class UnionCbfI:
                 record_time=show_verification_time,
                 sos_type=sos_type,
             )
+            total_verif_time += (verif_time if verif_time is not None else 0)
             if not feasible_in_subset:
                 if show_output:
                     print(
                         "Feasibility condition failed in this subset."
                     )
-                return False
+                return False, total_verif_time
         if show_output:
             print("Feasibility condition passed for all non-empty subsets.")
-        return True
+        return True, total_verif_time
 
     def _lambda_xi(
         self,

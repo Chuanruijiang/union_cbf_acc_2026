@@ -216,7 +216,7 @@ class UnionCbfII:
         record_time: bool = True,
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-        ):
+        ) -> Tuple[bool, Optional[float]]:
         prog = self.construct_cbf_feasibility_prog(
             cbf=cbf,
             lagrangian_degrees=lagrangian_degrees,
@@ -230,7 +230,8 @@ class UnionCbfII:
         if record_time:
             end_time = time.time()
             print(f"Time taken for checking CBF feasibility: {end_time - start_time} seconds")
-        return result.is_success()
+            return result.is_success(), end_time - start_time
+        return result.is_success(), None
         
     def verification_feasibility_condition_II(
         self,
@@ -242,11 +243,12 @@ class UnionCbfII:
         show_output: bool = True,
         show_verification_time: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
-    ):
+    ) -> Tuple[bool, Optional[float]]:
+        total_verif_time = 0
         for idx, cbf in enumerate(union_cbfs):
             if show_output:
                 print(f"Checking CBF feasibility for CBF index {idx}...")
-            is_feasible = self.check_cbf_feasibility(
+            (is_feasible, verif_time) = self.check_cbf_feasibility(
                 cbf=cbf,
                 lagrangian_degrees=lagrangian_degrees,
                 eta=eta,
@@ -254,13 +256,14 @@ class UnionCbfII:
                 sos_type=sos_type,
                 record_time=show_verification_time,
             )
+            total_verif_time += (verif_time if verif_time is not None else 0)
             if not is_feasible:
                 if show_output:
                     print(f"CBF feasibility condition failed for CBF index {idx}.")
-                return False
+                return False, total_verif_time
         if show_output:
             print("CBF feasibility condition passed for all CBFs.")
-        return True
+        return True, total_verif_time
         
     def _xi_lambda(
         self,

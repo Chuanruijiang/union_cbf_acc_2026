@@ -13,15 +13,16 @@ def plot_2D_function(
     ax: matplotlib.axes.Axes,
     f: Union[sym.Polynomial, np.ndarray],
     x: Optional[np.ndarray],
-    x_range: Tuple[float, float],
-    y_range: Tuple[float, float],
+    x_range: Optional[Tuple[float, float]],
+    y_range: Optional[Tuple[float, float]],
     sampling_rate: Optional[int],
     with_contour: bool,
-    color: str,
+    line_color: str='black',
     contour_line_style='-',
     contour_line_width: float=3,
     with_region_filled: bool=False,
-    alpha: Optional[float]=None,
+    region_color: Optional[str]="green",
+    alpha: Optional[float]=0.5,
 ):
     """
     Given a function f(x) defined over a 2D domain, plot the superlvel set
@@ -32,6 +33,8 @@ def plot_2D_function(
     """
     if isinstance(f, sym.Polynomial):
         assert x is not None
+        assert x_range is not None
+        assert y_range is not None
         assert sampling_rate is not None
         grid_x, grid_y = np.meshgrid(
             np.linspace(x_range[0], x_range[1], sampling_rate),
@@ -55,7 +58,7 @@ def plot_2D_function(
             grid_y,
             grid_f,
             levels=[0],
-            colors=color,
+            colors=line_color,
             linestyles=contour_line_style,
             linewidths=contour_line_width
             )
@@ -67,7 +70,7 @@ def plot_2D_function(
             grid_y,
             grid_f,
             levels=[0, np.inf],
-            colors=color,
+            colors=region_color,
             alpha=alpha
             )
     else:
@@ -81,7 +84,9 @@ def plot_intersection_region(
     x: np.ndarray,
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
-    sampling_rate: int
+    sampling_rate: int,
+    color: str='grey',
+    alpha: float=1.0
 ):
     """
     In this function, we plot the intersection of p_i(x) >= 0 for all i.
@@ -107,8 +112,8 @@ def plot_intersection_region(
         grid_y,
         intersection,
         levels=[0, np.inf],
-        colors='black',
-        alpha=0.5
+        colors=color,
+        alpha=alpha
     )
     return intersection_region
 
@@ -197,44 +202,61 @@ def plot_unsafe_region(
     unsafe_regions: List[np.ndarray],
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
+    color: str='grey',
+    alpha: float=0.5
 ):
     assert isinstance(unsafe_regions, List)
     for each_intersection_unsafe_region in unsafe_regions:
-        plot_intersection_region(
+        unsafe_region = plot_intersection_region(
             ax=ax,
             p=each_intersection_unsafe_region,
             x=x_states[0:2],
-        x_range=x_range,
-        y_range=y_range,
-        sampling_rate=500,
-        color="grey",
-        alpha=1.0
-    )
+            x_range=x_range,
+            y_range=y_range,
+            sampling_rate=500,
+            color=color,
+            alpha=alpha
+        )
+    return unsafe_region
 
-def plot_cbf_boundaries(
+def plot_union_cbfs(
     ax: plt.Axes,
     x_states: np.ndarray,
     switching_cbfs: np.ndarray,
     x_range: Tuple[float, float],
-    y_range: Tuple[float, float]
+    y_range: Tuple[float, float],
+    line_color: str='black',
+    contour_line_style: str='--',
+    contour_line_width: float=1,
+    mark_region: bool=False,
+    region_color: Optional[str]="green",
+    region_alpha: Optional[float]=0.5
 ):
     for h_i in switching_cbfs:
-        plot_2D_function(
+        (
+            cbf_contour, cbf_region
+        ) = plot_2D_function(
             ax=ax,
             f=h_i,
             x=x_states[0:2],
             x_range=x_range,
             y_range=y_range,
             with_contour=True,
-            color="black",
-            contour_line_style="--",
-            contour_line_width=1,
-            sampling_rate=500
+            line_color=line_color,
+            contour_line_style=contour_line_style,
+            contour_line_width=contour_line_width,
+            sampling_rate=500,
+            with_region_filled=mark_region,
+            region_color=region_color,
+            alpha=region_alpha
         )
+    return cbf_contour, cbf_region
 
 def plot_simulation_results(
     ax: plt.Axes,
     state_data: np.ndarray,
+    color: str='blue',
+    linestyle: str='-',
 ):
     """
     Plot the simulated trajectories.
@@ -242,13 +264,16 @@ def plot_simulation_results(
     ax.plot(
         state_data[0, :], state_data[1, :],
         label="Simulation Positional Trajectory",
-        color="blue"
+        color=color,
+        linestyle=linestyle
     )
 
 def plot_signal_time_records(
     ax: plt.Axes,
     signal_data: np.ndarray,
-    time_data: np.ndarray
+    time_data: np.ndarray,
+    color: str='blue',
+    linestyle: str='-'
 ):
     """
     Plot the action and time records.
@@ -256,7 +281,8 @@ def plot_signal_time_records(
     ax.plot(
         time_data,
         signal_data,
-        color="blue"
+        color=color,
+        linestyle=linestyle
     )
 
 

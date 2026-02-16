@@ -93,6 +93,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 from typing_extensions import Self
 
+import time
 import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
@@ -454,6 +455,7 @@ class UnionCbfI:
         eta: float,
         eps: float,
         *,
+        record_time: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ):
         prog = self.construct_feasibility_in_subset_prog(
@@ -463,10 +465,15 @@ class UnionCbfI:
             eps=eps,
             sos_type=sos_type,
         )
+        if record_time:
+            start_time = time.time()
         result = solve_with_id(prog)
+        if record_time:
+            end_time = time.time()
+            print(f"Time taken for feasibility check: {end_time - start_time} seconds")
         return result.is_success()
 
-    def verfication_fesibility_condition_I(
+    def verification_feasibility_condition_I(
         self,
         union_cbfs: np.ndarray,
         lagrangian_degrees: SubsetGeneralLagrangianDegrees,
@@ -474,6 +481,7 @@ class UnionCbfI:
         eps: float,
         *,
         show_output: bool = True,
+        show_verification_time: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ) -> bool:
         """
@@ -501,6 +509,7 @@ class UnionCbfI:
                 lagrangian_degrees=lagrangian_degrees,
                 eta=eta,
                 eps=eps,
+                record_time=show_verification_time,
                 sos_type=sos_type,
             )
             if not feasible_in_subset:

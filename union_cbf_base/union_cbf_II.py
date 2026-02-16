@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 from typing_extensions import Self
 
+import time 
 import numpy as np
 import pydrake.solvers as solvers
 import pydrake.symbolic as sym
@@ -212,6 +213,7 @@ class UnionCbfII:
         lagrangian_degrees: CbfFeasibilityLagrangianDegrees,
         eta: float,
         eps: float,
+        record_time: bool = True,
         *,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
         ):
@@ -222,7 +224,12 @@ class UnionCbfII:
             eps=eps,
             sos_type=sos_type,
         )
+        if record_time:
+            start_time = time.time()
         result = solve_with_id(prog)
+        if record_time:
+            end_time = time.time()
+            print(f"Time taken for checking CBF feasibility: {end_time - start_time} seconds")
         return result.is_success()
         
     def verification_feasibility_condition_II(
@@ -230,18 +237,22 @@ class UnionCbfII:
         union_cbfs: np.ndarray,
         lagrangian_degrees: CbfFeasibilityLagrangianDegrees,
         eta: float,
-        epsilon: float,
+        eps: float,
         *,
         show_output: bool = True,
+        show_verification_time: bool = True,
         sos_type=solvers.MathematicalProgram.NonnegativePolynomial.kSos,
     ):
         for idx, cbf in enumerate(union_cbfs):
+            if show_output:
+                print(f"Checking CBF feasibility for CBF index {idx}...")
             is_feasible = self.check_cbf_feasibility(
                 cbf=cbf,
                 lagrangian_degrees=lagrangian_degrees,
                 eta=eta,
-                epsilon=epsilon,
+                eps=eps,
                 sos_type=sos_type,
+                record_time=show_verification_time,
             )
             if not is_feasible:
                 if show_output:

@@ -51,5 +51,22 @@ def test_check_single_cbf_feasibility():
     )
     assert feasible is True
 
+def main():
+    x_val_grid, y_val_grid = np.meshgrid(
+        np.linspace(-3, 3, 5),
+        np.linspace(-3, 3, 5)
+    )
+    print(x_val_grid)
+    print(y_val_grid)
+    grid_val = np.concatenate(
+        [x_val_grid.reshape(1, -1), y_val_grid.reshape(1, -1)],
+        axis=0
+    )
+    print(grid_val.shape)
+    print(grid_val)
+    
+
+
+
 if __name__ == "__main__":
-    test_check_single_cbf_feasibility()
+    main()

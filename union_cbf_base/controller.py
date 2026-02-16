@@ -14,7 +14,7 @@ from union_cbf_base.utils import(
 class CbfConstraint:
     def __init__(
         self,
-        h: sym.Polynomial,
+        h: Union[sym.Polynomial, sym.Expression],
         f: np.ndarray,
         g: np.ndarray,
         x: np.ndarray,
@@ -87,11 +87,11 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         cbfs: np.ndarray,
         alpha: float,
         control_limits: Tuple[np.ndarray, np.ndarray],
-        waypoints: np.ndarray,
         switching_policy_id: int, # 1 or 2
-        switching_threshold: Union[float, Tuple[float, float]],
-        solver_id: Optional[solvers.SolverId],
-        solver_options: Optional[solvers.SolverOptions],
+        switching_threshold: Tuple[float, float],
+        initial_cbf_index: int=0,
+        solver_id: Optional[solvers.SolverId] = None,
+        solver_options: Optional[solvers.SolverOptions] = None,
     ):
         super().__init__()
         self.x=x
@@ -100,22 +100,18 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         self.cbfs=cbfs
         self.alpha=alpha
         self.control_limits=control_limits
-        assert waypoints.shape[1] == x.shape[0]
-        self.waypoints=waypoints
         assert switching_policy_id == 1 \
             or switching_policy_id == 2
         self.switching_policy_id=switching_policy_id
         self.solver_id=solver_id
         self.solver_options=solver_options
-        if switching_policy_id == 1:
-            assert isinstance(switching_threshold, float)
-            self.switching_threshold = switching_threshold
-        elif switching_policy_id == 2:
-            assert isinstance(switching_threshold, Tuple)
-            self.switching_threshold=switching_threshold
+        assert isinstance(switching_threshold, Tuple)
+        assert len(switching_threshold) == 2
+        assert switching_threshold[0] < switching_threshold[1]
+        self.switching_threshold = switching_threshold
         self.nu = g.shape[1]
         self.nx = x.shape[0]
-        self.choose_cbf_index = 0  # default to the first cbf
+        self.choose_cbf_index = initial_cbf_index
         
         # define input ports:
         # 0: state vector x input
@@ -151,7 +147,7 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
 
          1. max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x) <= 0
         In other words,
-            min_{u in U(x)} - (L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x)) > 0
+            min_{u in U(x)} - (L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x)) >= 0
         meaning that there is no admissible control that can make the CBF condition
         of the current active CBF hold;
 
@@ -162,31 +158,29 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
          3. h_j(x) >= 0
         meaning that the candidate CBF is valid at the current state.
         """
-        assert self.switching_threshold is not None \
-            and isinstance(self.switching_threshold, float)
-        eta = self.switching_threshold
+        (eta_low, eta_high) = self.switching_threshold
         # check the first switching condition
         swtiching_condition_1 = False
-        optimal_cost = self._find_max_of_cbf_constriant(
+        optimal_cost = self._find_min_of_cbf_constriant(
             cbf_index=self.choose_cbf_index,
             x_val=x_val
         )
-        if optimal_cost > 0:
+        if optimal_cost >= -eta_low:
             swtiching_condition_1 = True
         
         # check the second and third condition:
         if swtiching_condition_1:
             for i in range(self.cbfs.shape[0]):
-                if i == self.choose_switching_cbf_index:
+                if i == self.choose_cbf_index:
                     continue
                 cbf_i_val = self.cbfs[i].Evaluate(
                     {self.x[i]: x_val[i] for i in range(x_val.size)}
                 )
-                optimal_cost = self._find_max_of_cbf_constriant(
-                    switching_cbf_index=i,
+                optimal_cost = self._find_min_of_cbf_constriant(
+                    cbf_index=i,
                     x_val=x_val
                 )
-                if optimal_cost <= -eta and cbf_i_val >= 0:
+                if optimal_cost <= -eta_high and cbf_i_val >= 0:
                     self.choose_cbf_index = i
 
     def switching_policy_2(
@@ -206,9 +200,6 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         meaning that there exists an admissible control that can make the CBF
         strictly hold.
         """
-        assert self.switching_threshold is not None \
-            and isinstance(self.switching_threshold, Tuple)
-        assert self.switching_threshold[0] < self.switching_threshold[1]
         (eta_low, eta_high) = self.switching_threshold
         
         switching_condition_1 = False
@@ -227,7 +218,7 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
                 cbf_i_val = self.cbfs[i].Evaluate(
                     {self.x[i]: x_val[i] for i in range(x_val.size)}
                 )
-                optimal_cost = self._find_max_of_cbf_constriant(
+                optimal_cost = self._find_min_of_cbf_constriant(
                     cbf_index=i,
                     x_val=x_val,
                 )
@@ -277,13 +268,15 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         safe_u = result.GetSolution(u)
         output.set_value(safe_u)
     
-    def _find_max_of_cbf_constriant(
+    def _find_min_of_cbf_constriant(
         self,
         cbf_index: int,
         x_val: np.ndarray,
     ) -> float:
         """
         This function finds the following value:
+        max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x)
+        In other words,
         min_{u in U(x)} -L_{g}h_i(x) u - L_f h_i(x) - alpha * h_i(x)
         where U(x) = {u| Au <= c}
         1. cbf_index: the index of the cbf h_i

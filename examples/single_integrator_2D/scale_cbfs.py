@@ -19,7 +19,7 @@ import matplotlib.patches as patches
 
 class ExperimentSetup:
     def __init__(self):
-        self.waypoints = np.array([
+        self.centers = np.array([
             [4, 4],
             [8, 5],
             [12, 5],
@@ -32,12 +32,15 @@ class ExperimentSetup:
             [23 + 6*np.sqrt(2), 10 + 2*np.sqrt(2)],
             [23 + 6*np.sqrt(2), 8]
         ])
+        self.radius = 3.0
         
-    def get_cbfs(self, x: np.ndarray, radius: float=3.0) -> np.ndarray:
+    def get_cbfs(self, x: np.ndarray) -> np.ndarray:
         assert x.shape == (2,)
         return np.array([
-            sym.Polynomial(radius**2 - (x[0] - each_point[0])**2 - (x[1] - each_point[1])**2)
-            for each_point in self.waypoints
+            sym.Polynomial(
+                self.radius**2 - (x[0] - each_point[0])**2 - (x[1] - each_point[1])**2
+                )
+            for each_point in self.centers
         ])
     
     def plot_setup(
@@ -47,8 +50,8 @@ class ExperimentSetup:
         if ax is None:
             fig = plt.figure()
             ax = fig.add_subplot()
-        centers = self.waypoints
-        radius = 3.0
+        centers = self.centers
+        radius = self.radius
         for each_center in centers:
             circle = patches.Circle(
                 each_center,
@@ -65,53 +68,18 @@ class ExperimentSetup:
                 marker='o',
                 color=(0, 0.5, 0)
                 )
-        
-        obstacle_1 = patches.Rectangle(
-            xy=(5, 10),
-            width=10,
-            height=20,
-            facecolor='black',
-            edgecolor=None,
-            alpha=0.5
-        )
-        ax.add_patch(obstacle_1)
-
-        obstacle_2 = patches.Rectangle(
-            xy=(23, 0),
-            width=4,
-            height=13,
-            facecolor='black',
-            edgecolor=None,
-            alpha=0.5
-        )
-        ax.add_patch(obstacle_2)
 
 
 def main():
+    """
+    This function shows how the environment setup looks like
+    """
     env_setup = ExperimentSetup()
     fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot()
     env_setup.plot_setup(ax=ax)
     ax.set_xlim(0, 35)
     ax.set_ylim(0, 35)
-    legend_elements = [
-        plt.Line2D([0], [0],
-            color='blue', lw=1.5, linestyle="--", label='Switching Policy 1'
-            ),
-        plt.Line2D([0], [0],
-            color='orange', lw=2, linestyle="-", label='Switching Policy 2'
-            ),
-        plt.Line2D([0], [0],
-            color=(0, 1, 0), lw=2, linestyle='-.', label='CBF boundary'
-            ),
-        patches.Patch(facecolor='black', edgecolor='black', alpha=0.5, label='Obstacles'),
-        patches.Patch(facecolor='green', alpha=0.3, label='CBF regions')
-    ]
-    ax.legend(
-        handles=legend_elements,
-        loc='upper right',
-        fontsize=10
-        )
 
 if __name__ == "__main__":
     main()

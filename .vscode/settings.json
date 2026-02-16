@@ -15,5 +15,6 @@
     },
     "terminal.integrated.env.windows": {
         "PYTHONPATH": "${env:PYTHONPATH};./union_cbf_acc_2026"
-    }
+    },
+    "jupyter.notebookFileRoot": "./union_cbfs_journal_extension",
 }

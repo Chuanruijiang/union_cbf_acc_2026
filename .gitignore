@@ -1,4 +1,4 @@
 *.pyc
-compatible_clf_cbf.egg-info/*
+union_cbf_base.egg-info/*
 venv/*
 __pycache__/

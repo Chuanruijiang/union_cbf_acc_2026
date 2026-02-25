@@ -101,7 +101,7 @@ def plot_examples():
     Plot the the examples above for visualization. 
     """
     set_of_colors = ['green', 'blue', 'red']
-    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+    fig1, ax = plt.subplots(figsize=(5, 5))
 
     # Plot sparse example
     for i in range(sparse_centers.shape[0]):
@@ -111,8 +111,9 @@ def plot_examples():
             facecolor=set_of_colors[i],
             alpha=0.3
             )
-        ax[0].add_patch(circle)
+        ax.add_patch(circle)
 
+    fig2, bx = plt.subplots(figsize=(5, 5))
     # Plot dense example
     for i in range(dense_centers.shape[0]):
         circle = patches.Circle(
@@ -121,64 +122,69 @@ def plot_examples():
             facecolor=set_of_colors[i],
             alpha=0.3
             )
-        ax[1].add_patch(circle)
+        bx.add_patch(circle)
 
-    ax[0].set_title("Sparse Layout of CBFs", fontsize=20)
-    ax[0].set_xlim(-0.4, 0.4)
-    ax[0].set_ylim(-0.4, 0.4)
-    ax[0].set_xlabel(r"$x_1$", fontsize=18)
-    ax[0].set_ylabel(r"$x_2$", fontsize=18)
-    ax[0].set_yticks([-0.4, -0.2, 0, 0.2, 0.4])
-    ax[0].set_yticklabels([
+    ax.set_title("Sparse Layout of CBFs", fontsize=20)
+    ax.set_xlim(-0.4, 0.4)
+    ax.set_ylim(-0.4, 0.4)
+    ax.set_xlabel(r"$x_1$", fontsize=18)
+    ax.set_ylabel(r"$x_2$", fontsize=18)
+    ax.set_yticks([-0.4, -0.2, 0, 0.2, 0.4])
+    ax.set_yticklabels([
         r"$-0.4$",
         r"$-0.2$",
         r"$0$",
         r"$0.2$",
         r"$0.4$"
-    ])
-    ax[0].set_xticks([-0.4, -0.2, 0, 0.2, 0.4])
-    ax[0].set_xticklabels([
+    ], fontsize=15)
+    ax.set_xticks([-0.4, -0.2, 0, 0.2, 0.4])
+    ax.set_xticklabels([
         r"$-0.4$",
         r"$-0.2$",
         r"$0$",
         r"$0.2$",
         r"$0.4$"
-    ])
-    # ax[0].legend(handles=legend_patches, fontsize=16)
-    ax[1].set_title("Dense Layout of CBFs", fontsize=20)
-    ax[1].set_xlim(-0.4, 0.4)
-    ax[1].set_ylim(-0.4, 0.4)
-    ax[1].set_xlabel(r"$x_1$", fontsize=18, labelpad=5)
-    ax[1].set_ylabel(r"$x_2$", fontsize=18, labelpad=5)
-    ax[1].set_yticks([-0.4, -0.2, 0, 0.2, 0.4])
-    ax[1].set_yticklabels([
+    ], fontsize=15)
+    # ax.legend(handles=legend_patches, fontsize=16)
+    bx.set_title("Dense Layout of CBFs", fontsize=20)
+    bx.set_xlim(-0.4, 0.4)
+    bx.set_ylim(-0.4, 0.4)
+    bx.set_xlabel(r"$x_1$", fontsize=18, labelpad=5)
+    bx.set_ylabel(r"$x_2$", fontsize=18, labelpad=5)
+    bx.set_yticks([-0.4, -0.2, 0, 0.2, 0.4])
+    bx.set_yticklabels([
         r"$-0.4$",
         r"$-0.2$",
         r"$0$",
         r"$0.2$",
-        r"$0.4$"
-    ])
-    ax[1].set_xticks([-0.4, -0.2, 0, 0.2, 0.4])
-    ax[1].set_xticklabels([
+        r"$0.4$",
+    ], fontsize=15)
+    bx.set_xticks([-0.4, -0.2, 0, 0.2, 0.4])
+    bx.set_xticklabels([
         r"$-0.4$",
         r"$-0.2$",
         r"$0$",
         r"$0.2$",
-        r"$0.4$"
-    ])
+        r"$0.4$",
+    ], fontsize=15)
 
     legend_patches = [
         patches.Patch(color=set_of_colors[0], alpha=0.3, label=r'$\mathcal{X}_1$'),
         patches.Patch(color=set_of_colors[1], alpha=0.3, label=r'$\mathcal{X}_2$'),
         patches.Patch(color=set_of_colors[2], alpha=0.3, label=r'$\mathcal{X}_3$'),
     ]
-    
-    fig.legend(
+
+    bx.legend(
         handles=legend_patches,
-        fontsize=20,
-        loc='lower center',
-        bbox_to_anchor=(0.5, 0.95),
-        ncol=3)
+        fontsize=15,
+        loc='upper right',
+    )
+
+    ax.legend(
+        handles=legend_patches,
+        fontsize=15,
+        loc='upper right',
+        )
 
 # We then use the follwing functions to verify the sparse and
 # dense examples using both the verif-I and verif-II methods.
@@ -272,13 +278,13 @@ def verification_with_verif_I(
     print("The verification of Verif-I for dense alignment is successful!")
 
 if __name__ == "__main__":
-    # plot_examples()
-    verification_with_verif_I(
-        # cbf_case="sparse",
-        cbf_case="dense",
-    )
-    verification_with_verif_II(
-        # cbf_case="sparse",
-        cbf_case="dense",
-    )
+    plot_examples()
+    # verification_with_verif_I(
+    #     # cbf_case="sparse",
+    #     cbf_case="dense",
+    # )
+    # verification_with_verif_II(
+    #     # cbf_case="sparse",
+    #     cbf_case="dense",
+    # )
 

@@ -106,14 +106,14 @@ def main():
     ax.set_title("Simulation Trajectories", fontsize=16)
 
     legend_handles = [
-        lines.Line2D([0], [0], color='black', lw=1.5, linestyle='--', label=r'$h_i(x)=0$'),
+        # lines.Line2D([0], [0], color='black', lw=1.5, linestyle='--', label=r'$h_i(x)=0$'),
         lines.Line2D([0], [0], color='blue', lw=1.5, label='Trajectories'),
         lines.Line2D([0], [0], color='red', lw=1.5, linestyle='--', label='Reference Hight')
     ]
     ax.legend(
         handles=legend_handles,
         loc='upper right',
-        fontsize=10,
+        fontsize=12,
     )
 
 if __name__ == "__main__":

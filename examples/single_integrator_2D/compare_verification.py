@@ -157,5 +157,5 @@ def verification_higher_order_cbf_verif_II():
 
 if __name__ == "__main__":
     verification_union_verif_I()
-    verification_union_verif_II()
-    verification_higher_order_cbf_verif_II()
+    # verification_union_verif_II()
+    # verification_higher_order_cbf_verif_II()

@@ -231,8 +231,8 @@ def main(save: bool = False):
     # create the high degree polynomial CBF:
     high_degree_cbf = high_degree_polynomial_cbf(x, k=3, bias=0.3)
 
-    x0_low, x0_high = -4.5, 5.5
-    x1_low, x1_high = -4.5, 4.5
+    x0_low, x0_high = -4.5, 5
+    x1_low, x1_high = -4, 5.5
     composite_cbf_data = evaluate_composition_cbf(
         f=composite_cbf,
         x=x,
@@ -242,10 +242,15 @@ def main(save: bool = False):
     )
     # plot the problem setup:
     fig, ax = plt.subplots(
-        # figsize=(6/1.2, 4.5/1.2)
+        figsize=(5, 5)
     )
     ax.set_xlim(x0_low, x0_high)
     ax.set_ylim(x1_low, x1_high)
+    ax.set_xticks([-4, -2, 0, 2, 4])
+    ax.set_xticklabels(['-4', '-2', '0', '2', '4'], fontsize=15)
+    ax.set_yticks([-4, -2, 0, 2, 4])
+    ax.set_yticklabels(['-4', '-2', '0', '2', '4'], fontsize=15)
+
     # plot the unsafe region:
     plot_unsafe_region(
         ax=ax,
@@ -263,7 +268,7 @@ def main(save: bool = False):
         y_range=(x1_low, x1_high),
         line_color="black",
         contour_line_style='--',
-        contour_line_width=2,
+        contour_line_width=3,
         mark_region=True,
         region_color="lightgreen",
         region_alpha=1.0
@@ -279,7 +284,7 @@ def main(save: bool = False):
         with_contour=True,
         line_color="red",
         contour_line_style='-',
-        contour_line_width=2,
+        contour_line_width=3,
         with_region_filled=False
     )
     # plot the high degree polynomial CBF boundary:
@@ -291,22 +296,22 @@ def main(save: bool = False):
         y_range=(x1_low, x1_high),
         line_color="blue",
         contour_line_style='-.',
-        contour_line_width=2,
+        contour_line_width=3,
         mark_region=False,
     )
 
-    ax.set_xlabel("x0", fontsize=16)
-    ax.set_ylabel("x1", fontsize=16)
-    ax.set_title("Safe Region Converage Comparison", fontsize=16)
+    ax.set_xlabel("x0", fontsize=20)
+    ax.set_ylabel("x1", fontsize=20)
+    ax.set_title("Safe Region Comparison", fontsize=20)
     
     legend_handles = [
-        lines.Line2D([0], [0], color='black', lw=2, linestyle='--', label=r'$h_i(x)=0$'),
-        lines.Line2D([0], [0], color='red', lw=2, linestyle='-', label=r'$h_{comp}(x) = 0$'),
-        lines.Line2D([0], [0], color='blue', lw=2, linestyle='-.', label=r'$h_{high}(x) = 0$'),
+        lines.Line2D([0], [0], color='black', lw=3, linestyle='--', label=r'$h_i(x)=0$'),
+        lines.Line2D([0], [0], color='red', lw=3, linestyle='-', label=r'$h_{comp}(x) = 0$'),
+        lines.Line2D([0], [0], color='blue', lw=3, linestyle='-.', label=r'$h_{high}(x) = 0$'),
     ]
     ax.legend(
         handles=legend_handles,
-        fontsize=14,
+        fontsize=13,
         loc="upper right",
         ncol=1
     )

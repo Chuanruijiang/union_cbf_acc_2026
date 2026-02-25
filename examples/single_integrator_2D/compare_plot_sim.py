@@ -44,14 +44,18 @@ def load_simulation_data(
 def main():
     x = sym.MakeVectorContinuousVariable(2, "x")
 
-    x_low, x_high = -4.5, 5.5
-    y_low, y_high = -4.5, 4.5
+    x_low, x_high = -4.5, 5
+    y_low, y_high = -4, 5.5
 
     fig, ax = plt.subplots(
-        #figsize=(6/1.2, 4.5/1.2)
+        figsize=(5, 5)
     )
     ax.set_xlim(x_low, x_high)
     ax.set_ylim(y_low, y_high)
+    ax.set_xticks([-4, -2, 0, 2, 4])
+    ax.set_xticklabels(['-4', '-2', '0', '2', '4'], fontsize=15)
+    ax.set_yticks([-4, -2, 0, 2, 4])
+    ax.set_yticklabels(['-4', '-2', '0', '2', '4'], fontsize=15)
 
     # load and plot the unsafe region
     filename = "unsafe_region_and_cbfs.pkl"
@@ -104,27 +108,27 @@ def main():
                 each_state_data[1, :],
                 color=color,
                 linestyle=style,
-                linewidth=1.5
+                linewidth=3
             )
     # plot the waypoints:
-    ax.scatter(waypoints[:, 0], waypoints[:, 1], color = 'red', marker='x', s=100)
+    ax.scatter(waypoints[:, 0], waypoints[:, 1], color = 'red', marker='x', s=200, linewidths=3)
     # plot the initial states:
-    ax.scatter(x0[:, 0], x0[:, 1], color = 'red', marker='o', s=20)
+    ax.scatter(x0[:, 0], x0[:, 1], color = 'red', marker='o', s=60)
 
-    ax.set_xlabel("x0", fontsize=16)
-    ax.set_ylabel("x1", fontsize=16)
-    ax.set_title("Simulation Trajectories", fontsize=16)
+    ax.set_xlabel("x0", fontsize=18)
+    ax.set_ylabel("x1", fontsize=18)
+    ax.set_title("Simulation Trajectories", fontsize=20)
 
     legend_handles = [
-        lines.Line2D([0], [0], color='purple', linestyle='-', label='BNCBF'),
-        lines.Line2D([0], [0], color='lightblue', linestyle='-', label='CompCBF'),
-        lines.Line2D([0], [0], color='orange', linestyle='--', label='Switching I'),
-        lines.Line2D([0], [0], color='green', linestyle='-.', label='Switching II')
+        lines.Line2D([0], [0], color='purple', lw=3, linestyle='-', label='BNCBF'),
+        lines.Line2D([0], [0], color='lightblue', lw=3, linestyle='-', label='CompCBF'),
+        lines.Line2D([0], [0], color='orange', lw=3, linestyle='--', label='Switch I'),
+        lines.Line2D([0], [0], color='green', lw=3, linestyle='-.', label='Switch II')
     ]
     ax.legend(
         handles=legend_handles,
         loc='upper right',
-        fontsize=12,
+        fontsize=13,
     )
 
 

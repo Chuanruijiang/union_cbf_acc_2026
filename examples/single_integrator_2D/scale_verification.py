@@ -115,7 +115,11 @@ def comparison(save_path: str):
     verif_I_times = []
     verif_II_times = []
     for num_cbfs in num_cbfs_list:
+        print("====================================")
+        print(f"Verifying with {num_cbfs} CBFs...")
+        print("------------Verif-I:--------------")
         verif_I_time = verification_with_verif_I(num_cbfs)
+        print("------------Verif-II:--------------")
         verif_II_time = verification_with_verif_II(num_cbfs)
         verif_I_times.append(verif_I_time)
         verif_II_times.append(verif_II_time)
@@ -158,9 +162,9 @@ def plot_comparison(data_path: str):
     plt.legend()
 
 if __name__ == "__main__":
-    filename = "scale_verification_time_data.pkl"
+    filename = "verification_time_comparison_data.pkl"
     file_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
     comparison(save_path=file_path)
-    plot_comparison(data_path=file_path)
+    # plot_comparison(data_path=file_path)

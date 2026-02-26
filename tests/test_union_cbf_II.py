@@ -150,7 +150,7 @@ def test_check_single_cbf_feasibility():
         ],
         xi_y=Degree(x=2, y=0, c=0),
     )
-    feasible = test_obj.check_cbf_feasibility(
+    (feasible,_) = test_obj.check_cbf_feasibility(
         cbf=cbfs[0],
         lagrangian_degrees=lagrangian_degrees,
         eta=eta,

@@ -153,18 +153,27 @@ def plot_comparison(data_path: str):
     verif_I_times = data['verif_I_times']
     verif_II_times = data['verif_II_times']
     # plot the comparison results:
-    plt.figure()
-    plt.plot(num_cbfs_list, verif_I_times, label='Verif-I')
-    plt.plot(num_cbfs_list, verif_II_times, label='Verif-II')
-    plt.xlabel('Number of CBFs')
-    plt.ylabel('Verification Time (s)')
-    plt.title('Verification Time vs Number of CBFs')
-    plt.legend()
+    fig_comapre, ax = plt.subplots(figsize=(5, 5))
+    ax.plot(num_cbfs_list, verif_I_times, label='Verif-I', linewidth=3)
+    ax.plot(num_cbfs_list, verif_II_times, label='Verif-II', linewidth=3)
+    ax.set_xlabel('Number of CBFs', fontsize=15)
+    ax.set_ylabel('Verification Time (s)', fontsize=15)
+    ax.set_title('Verification Time Comparison', fontsize=20)
+    ax.tick_params(axis='both', labelsize=15)
+    ax.legend(fontsize=14)
+    # plot the verif-II results only:
+    fig_verif_ii, bx = plt.subplots(figsize=(5, 5))
+    bx.plot(num_cbfs_list, verif_II_times, label='Verif-II', linewidth=3, color='C1')
+    bx.set_xlabel('Number of CBFs', fontsize=15)
+    bx.set_ylabel('Verification Time (s)', fontsize=15)
+    bx.set_title('Verification Time Of Verif-II', fontsize=20)
+    bx.tick_params(axis='both', labelsize=15)
+    bx.legend(fontsize=14)
 
 if __name__ == "__main__":
     filename = "verification_time_comparison_data.pkl"
     file_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "../../data/", filename
     )
-    comparison(save_path=file_path)
-    # plot_comparison(data_path=file_path)
+    # comparison(save_path=file_path)
+    plot_comparison(data_path=file_path)

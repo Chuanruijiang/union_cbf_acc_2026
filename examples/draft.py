@@ -8,63 +8,50 @@ from union_cbf_base.union_cbf_II import (
 )
 from union_cbf_base.non_empty_subset import Subset
 
-def test_check_single_cbf_feasibility():
-    x = sym.MakeVectorContinuousVariable(2, "x")
-    f = np.array([sym.Polynomial(0), sym.Polynomial(0)])
-    g = np.array(
-        [[sym.Polynomial(1), sym.Polynomial(0)], [sym.Polynomial(0), sym.Polynomial(1)]]
-    )
-    A = np.array(
-        [
-            [sym.Polynomial(1), sym.Polynomial(0)],
-            [sym.Polynomial(0), sym.Polynomial(1)],
-            [sym.Polynomial(-1), sym.Polynomial(0)],
-            [sym.Polynomial(0), sym.Polynomial(-1)],
-        ]
-    )
-    c = np.array(
-        [sym.Polynomial(1), sym.Polynomial(1), sym.Polynomial(1), sym.Polynomial(1)]
-    )
-    cbfs = np.array(
-        [
-            sym.Polynomial((0.6) ** 2 - (x[0] - 0.5) ** 2 - (x[1] - 0) ** 2),
-            sym.Polynomial((0.6) ** 2 - (x[0] + 0.5) ** 2 - (x[1] - 0) ** 2),
-        ]
-    )
-    alpha = 0.1
-    eta = 1e-3
-    epsilon = 1e-3
-    test_obj = UnionCbfII(x=x, f=f, g=g, alpha=alpha, control_limits=(A, c))
-    lagrangian_degrees = CbfFeasibilityLagrangianDegrees(
-        cbf=Degree(x=2, y=2, c=0),
-        lambda_y=[
-            Degree(x=2, y=0, c=0),
-            Degree(x=2, y=0, c=0),
-        ],
-        xi_y=Degree(x=2, y=0, c=0),
-    )
-    feasible = test_obj.check_cbf_feasibility(
-        cbf=cbfs[0],
-        lagrangian_degrees=lagrangian_degrees,
-        eta=eta,
-        eps=epsilon
-    )
-    assert feasible is True
 
 def main():
-    x_val_grid, y_val_grid = np.meshgrid(
-        np.linspace(-3, 3, 5),
-        np.linspace(-3, 3, 5)
-    )
-    print(x_val_grid)
-    print(y_val_grid)
-    grid_val = np.concatenate(
-        [x_val_grid.reshape(1, -1), y_val_grid.reshape(1, -1)],
-        axis=0
-    )
-    print(grid_val.shape)
-    print(grid_val)
-    
+    # x = sym.MakeVectorContinuousVariable(3, "x")
+    # h = (x[0] - 2.5) ** 2 + (x[1] - 3.5) ** 2 - (1.6)**2
+    # V = 0.75
+    # alpha1 = 1.0
+    # alpha2 = 10.0
+    # f = np.array([
+    #     V * np.cos(x[2]),
+    #     V * np.sin(x[2]),
+    #     sym.Expression(0.0),
+    # ])
+    # g = np.array([[sym.Expression(0.0)], [sym.Expression(0.0)], [sym.Expression(1.0)]])
+    # Lfh = utils.lie_derivative(
+    #     poly=h, vector_field=f, variables=x, pow=1
+    # )
+    # phi_1 = Lfh + alpha1*h
+    # L2fh = utils.lie_derivative(
+    #     poly=phi_1, vector_field=f, variables=x, pow=1
+    # )
+    # LgLfh = utils.lie_derivative(
+    #     poly=phi_1, vector_field=g, variables=x, pow=1  
+    # )
+    # phi_2_xi = L2fh + (alpha1 + alpha2)*Lfh + alpha1*alpha2*h
+    # phi_2_lambda = -LgLfh
+
+    # x0_val, x1_val = -0.1, 3.5
+    # env = {x[0]: x0_val, x[1]: x1_val, x[2]: np.arctan2(3.5 - x1_val, 2.5 - x0_val)}
+    # phi_0_val = h.Evaluate(env)
+    # phi_1_val = phi_1.Evaluate(env)
+    # phi_2_xi_val = phi_2_xi.Evaluate(env)
+    # phi_2_lambda_val = np.array([
+    #     phi_2_lambda[i].Evaluate(env) 
+    #     for i in range(phi_2_lambda.shape[0])
+    # ])
+    # print(f"checking at x0: {x0_val}, x1: {x1_val}, x2: {env[x[2]]}")
+    # print(f"phi_0_val: {phi_0_val}")
+    # print(f"phi_1_val: {phi_1_val}")
+    # print(f"phi_2_xi_val: {phi_2_xi_val}")
+    # print(f"phi_2_lambda_val: {phi_2_lambda_val}")
+    pass
+
+
+
 
 
 

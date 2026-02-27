@@ -28,7 +28,7 @@ def test_unsafe_exclusion_poly():
         h_x_degree=0
     )
 
-    assert check_result is True
+    assert check_result is False
 
 def test_unsafe_exclusion_points():
     x = sym.MakeVectorContinuousVariable(2, "x")

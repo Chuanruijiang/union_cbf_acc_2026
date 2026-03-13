@@ -1,0 +1,4 @@
+*.pyc
+union_cbf_base.egg-info/*
+venv/*
+__pycache__/

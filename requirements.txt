@@ -1,0 +1,11 @@
+black
+black[jupyter]
+drake
+flake8
+ipykernel
+jax
+jaxlib
+matplotlib
+numpy
+pytest
+scipy

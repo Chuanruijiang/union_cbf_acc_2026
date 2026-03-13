@@ -1,0 +1,21 @@
+{
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.analysis.extraPaths": [
+        "./union_cbfs_acc_2026"
+    ],
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${env:PYTHONPATH}:./union_cbfs_acc_2026"
+    },
+    "terminal.integrated.env.osx": {
+        "PYTHONPATH": "${env:PYTHONPATH}:./union_cbfs_acc_2026"
+    },
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "${env:PYTHONPATH};./union_cbfs_acc_2026"
+    },
+    "jupyter.notebookFileRoot": "./union_cbfs_acc_2026",
+    "githubPullRequests.codingAgent.uiIntegration": true
+}

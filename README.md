@@ -89,5 +89,5 @@ pip install -e .
 
 ## Dependencies
 
-See [requirements.txt](requirements.txt). Core dependencies include `numpy`, `scipy`, `cvxpy`, and a compatible SOS solver (MOSEK or SOSTOOLS-compatible interface).
+See [requirements.txt](requirements.txt). Core dependencies include `numpy`, `scipy`, `cvxpy`, and a compatible SOS solver (MOSEK).
 

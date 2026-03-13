@@ -49,4 +49,4 @@ def test_unsafe_exclusion_points():
     )
     check_result = check_object.verify_unsafe_point_exclusion()
     assert check_result == True
-    assert True == False
+    assert False == True

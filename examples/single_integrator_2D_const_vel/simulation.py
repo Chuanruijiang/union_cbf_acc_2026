@@ -97,11 +97,13 @@ def build_diagram_switching_I() -> Tuple[
             x=x,
             f=f,
             g=g,
-            cbfs=cbfs,
-            alpha=alpha,
+            normal_cbfs=None,
+            switching_cbfs=cbfs,
+            relative_degree=[1],
+            alpha=[[alpha]],
             control_limits=(A, c),
             switching_policy_id=1,
-            switching_threshold=(0.3, 0.4)
+            switching_policy_param=(0.3, 0.4),
         )
     )
     action_logger = LogVectorOutput(switching_controller.get_output_port(), builder)
@@ -245,5 +247,3 @@ def save_simulation_data(
 
 if __name__ == "__main__":
     run_simulation()
-
-

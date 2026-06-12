@@ -40,7 +40,14 @@ class BncbfController(drake_sys_frame.LeafSystem):
 
         # prepare all the cbf constraints:
         self.cbf_constraints = [
-            CbfConstraint(h=cbf, f=f, g=g, x=x, alpha=alpha)
+            CbfConstraint(
+                h=cbf,
+                f=f,
+                g=g,
+                x=x,
+                alpha=[alpha],
+                relative_degree=1,
+            )
             for cbf in cbfs
         ]
         # the sequence of cbf constraints is the same as the 
@@ -156,8 +163,9 @@ class CompositeCbfController(drake_sys_frame.LeafSystem):
             f=f,
             g=g,
             x=x,
-            alpha=alpha
-            )
+            alpha=[alpha],
+            relative_degree=1,
+        )
         # the sequence of cbf constraints is the same as the 
         # sequence of cbfs.
 
@@ -212,7 +220,6 @@ class CompositeCbfController(drake_sys_frame.LeafSystem):
             )
         ) - b / k
         return composite_cbf
-
 
 
 

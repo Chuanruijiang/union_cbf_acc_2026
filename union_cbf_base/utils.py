@@ -101,6 +101,28 @@ def truth_table(n: int) -> np.ndarray:
     return np.array(table)
 
 
+def all_possible_sequences(
+    num_elements: int,
+    num_possible_values_for_each_element: int
+) -> np.ndarray:
+    """
+    This function generates all possible squences of 
+    length `num_elements`, where each element in the 
+    sequence can take value from 0 to
+    `num_possible_values_for_each_element` - 1.
+    """
+    assert num_elements >= 1, "num_elements should be greater than 0"
+    assert num_possible_values_for_each_element >= 1, (
+        "num_possible_values_for_each_element should be greater than 0"
+    )
+    table = list(
+        itertools.product(
+            range(num_possible_values_for_each_element), repeat=num_elements
+        )
+    )
+    return np.array(table)
+
+
 def elementary_symetric_polynomials(input: Optional[list]) -> np.ndarray:
     """
     given a set of numbers, compute the symetric polynomials:

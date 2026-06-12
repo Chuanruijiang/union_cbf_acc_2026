@@ -67,6 +67,72 @@ def test_truth_table():
     assert np.all(output3 == expected_output3)
 
 
+def test_all_possible_sequences():
+    expected_output1 = np.array([
+        [0, 0, 0],
+        [0, 0, 1],
+        [0, 1, 0],
+        [0, 1, 1],
+        [1, 0, 0],
+        [1, 0, 1],
+        [1, 1, 0],
+        [1, 1, 1]
+    ])
+    output1 = mut.all_possible_sequences(
+        num_elements=3,
+        num_possible_values_for_each_element=2
+    )
+    assert output1.shape == expected_output1.shape
+    assert np.all(output1 == expected_output1)
+
+    expected_output2 = np.array([
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [0, 3],
+        [1, 0],
+        [1, 1],
+        [1, 2],
+        [1, 3],
+        [2, 0],
+        [2, 1],
+        [2, 2],
+        [2, 3],
+        [3, 0],
+        [3, 1],
+        [3, 2],
+        [3, 3]
+    ])
+    output2 = mut.all_possible_sequences(
+        num_elements=2,
+        num_possible_values_for_each_element=4
+    )
+    assert output2.shape == expected_output2.shape
+    assert np.all(output2 == expected_output2)
+
+    expected_output3 = np.array([
+        [0],
+        [1],
+        [2]
+    ])
+    output3 = mut.all_possible_sequences(
+        num_elements=1,
+        num_possible_values_for_each_element=3
+    )
+    assert output3.shape == expected_output3.shape
+    assert np.all(output3 == expected_output3)
+
+    expected_output4 = np.array([
+        [0, 0, 0, 0]
+    ])
+    output4 = mut.all_possible_sequences(
+        num_elements=4,
+        num_possible_values_for_each_element=1
+    )
+    assert output4.shape == expected_output4.shape
+    assert np.all(output4 == expected_output4)
+
+
 def test_elementary_symetric_polynomials():
     """
     During the project, we only pass list of float numbers to the function:
@@ -80,14 +146,19 @@ def test_elementary_symetric_polynomials():
     c = sym.Variable("c")
     input1 = []
     input2 = [a, b, c]
+    input3 = [a]
     output1 = mut.elementary_symetric_polynomials(input1)
     output2 = mut.elementary_symetric_polynomials(input2)
+    output3 = mut.elementary_symetric_polynomials(input3)
     expected_output1 = 1
     expected_output2 = np.array([1, a + b + c, a * b + a * c + b * c, a * b * c])
+    expected_output3 = np.array([1, a])
     assert output1 == expected_output1
     assert output2[0] == expected_output2[0]
     for i in range(1, output2.size):
         assert output2[i].EqualTo(expected_output2[i])
+    assert output3[0] == expected_output3[0]
+    assert output3[1].EqualTo(expected_output3[1])
 
 
 def test_lie_derivative():

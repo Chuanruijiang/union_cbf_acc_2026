@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -6,26 +6,79 @@ import pydrake.solvers as solvers
 import pydrake.symbolic as sym
 import pydrake.systems.framework as drake_sys_frame
 
-from union_cbf_base.utils import(
-    solve_with_id
+from union_cbf_base.utils import (
+    elementary_symetric_polynomials,
+    lie_derivative,
+    lower_lie_derivatives,
+    solve_with_id,
 )
 
 
 class CbfConstraint:
+    """
+    Add the linear constraint 
+    for an HOCBF:
+    If the realtive degree of h(x) is r, then
+    the left hand side is:
+    -L_{g}L_{f}^{r-1}h(x) u
+    the right hand side is:
+    elementary symetric polynomial vector of alphas
+    times the vector 
+    [L_{f}^{r-1}h(x), L_{f}^{r-2}h(x), ..., h(x)]^T
+    At any given state value x_val, the constraint is:
+    lhs(x_val) * u <= rhs(x_val)
+    which is linear in u.
+    (   In other words, this is to add one row of 
+        Lambda(x)u <= xi(x) )
+    """
     def __init__(
         self,
         h: Union[sym.Polynomial, sym.Expression],
         f: np.ndarray,
         g: np.ndarray,
         x: np.ndarray,
-        alpha:float,
+        alpha: list[float],
+        relative_degree: int,
     ):
-        dhdx = h.Jacobian(x)
-        dhdx_times_f = dhdx.dot(f)
-        dhdx_times_g = dhdx @ g
-        self.rhs = alpha * h + dhdx_times_f
-        self.lhs_coeff = -dhdx_times_g
+        assert len(alpha) == relative_degree
+
+        # Compute the HOCBF constraint:
+        # -L_g L_f^(r-1) h(x) u <= sum_i e_i(alpha) L_f^(r-i) h(x)
+        # where r is the relative degree and e_i are elementary symmetric
+        # polynomials of the alpha coefficients.
+        Lf_r_1 = lie_derivative(
+            poly=h,
+            vector_field=f,
+            variables=x,
+            pow=relative_degree - 1,
+        )
+        Lg_Lf_r_1 = lie_derivative(
+            poly=Lf_r_1,
+            vector_field=g,
+            variables=x,
+            pow=1,
+        )
+        assert isinstance(Lg_Lf_r_1, np.ndarray)
+        assert Lg_Lf_r_1.shape[0] == g.shape[1]
+        self.lhs_u_coeff = -Lg_Lf_r_1
+
+        alpha_vector = elementary_symetric_polynomials(alpha)
+        lie_derivative_vector = np.empty(
+            shape=(relative_degree + 1,),
+            dtype=object,
+        )
+        lie_derivative_vector[-1] = h
+        for j in range(relative_degree, 0, -1):
+            lie_derivative_vector[j - 1] = lie_derivative(
+                poly=lie_derivative_vector[j],
+                vector_field=f,
+                variables=x,
+                pow=1,
+            )
+        self.rhs = np.dot(lie_derivative_vector, alpha_vector)
+        self.lhs_coeff = self.lhs_u_coeff
         self.x = x
+        self.h = h
 
     def add_to_prog(
         self,
@@ -34,8 +87,7 @@ class CbfConstraint:
         u: np.ndarray
     ) -> solvers.Binding[solvers.LinearConstraint]:
         """
-        Add the linear constraint 
-        -dhdx * g(x)*u <= dhdx * f(x) + alpha * h(x) on u.
+        Add the linear HOCBF constraint evaluated at the current state.
         """
         env = {self.x[i]: x_val[i] for i in range(x_val.size)}
         lhs_coeff = np.array([p.Evaluate(env) for p in self.lhs_coeff])
@@ -53,23 +105,15 @@ class CbfConstraint:
             )
         return constraint
 
-    def add_as_cost(
+    def add_to_prog_as_cost(
         self,
-        prog:solvers.MathematicalProgram,
+        prog: solvers.MathematicalProgram,
         x_val: np.ndarray,
         u: np.ndarray
     ):
         """
-        This function adds the following cost on u:
-        cost = - dhdx * g(x)*u - dhdx * f(x) - alpha * h(x)
-        This part will be used for checing the swtiching conditions
-        for swtiching policy 1. In switching policy 1, we would like
-        to see the minimum value of the cost over the admissible
-        control set U(x) = {u| Au <= c}. The switching policy will
-        ready to switch to some other CBF if the minimum value above
-        is greater than zero, because in such case, the current CBF 
-        is infeasible and we need to switch to another CBF to ensure
-        safety.
+        Add the linearized HOCBF residual as a cost so the controller can
+        probe feasibility margins under the current admissible control set.
         """
         env = {self.x[i]: x_val[i] for i in range(x_val.size)}
         lhs_coeff = np.array([p.Evaluate(env) for p in self.lhs_coeff])
@@ -79,109 +123,156 @@ class CbfConstraint:
 
 
 class SwitchingCBFController(drake_sys_frame.LeafSystem):
+    """
+    If a system has trig-poly affine dynamics, then this controller
+    can be applied in the extended state space. For polynomial-affine
+    dynamics, pass the original state vector directly.
+    """
     def __init__(
         self,
         x: np.ndarray,
         f: np.ndarray,
         g: np.ndarray,
-        cbfs: np.ndarray,
-        alpha: float,
+        normal_cbfs: Optional[np.ndarray],
+        switching_cbfs: Optional[np.ndarray],
+        relative_degree: List[int],
+        alpha: List[List[float]],
         control_limits: Tuple[np.ndarray, np.ndarray],
         switching_policy_id: int, # 1 or 2
-        switching_threshold: Tuple[float, float],
+        switching_policy_param: Tuple[float, float],
         initial_cbf_index: int=0,
         solver_id: Optional[solvers.SolverId] = None,
         solver_options: Optional[solvers.SolverOptions] = None,
     ):
         super().__init__()
-        self.x=x
-        self.f=f
-        self.g=g
-        self.cbfs=cbfs
-        self.alpha=alpha
-        self.control_limits=control_limits
-        assert switching_policy_id == 1 \
-            or switching_policy_id == 2
-        self.switching_policy_id=switching_policy_id
-        self.solver_id=solver_id
-        self.solver_options=solver_options
-        assert isinstance(switching_threshold, Tuple)
-        assert len(switching_threshold) == 2
-        assert switching_threshold[0] < switching_threshold[1]
-        self.switching_threshold = switching_threshold
+        self.x = x
+        self.f = f
+        self.g = g
+        self.normal_cbfs = normal_cbfs
+        self.switching_cbfs = switching_cbfs
+        self.control_limits = control_limits
+        assert not (normal_cbfs is None and switching_cbfs is None)
+
+        num_normal_cbf_constraints = (
+            0 if normal_cbfs is None else normal_cbfs.shape[0]
+        )
+        num_switching_cbf_constraints = (
+            0 if switching_cbfs is None else 1
+        )
+        num_cbf_constraints = (
+            num_normal_cbf_constraints + num_switching_cbf_constraints
+        )
+        assert len(alpha) == num_cbf_constraints
+        assert len(relative_degree) == num_cbf_constraints
+        assert 0 <= initial_cbf_index < switching_cbfs.shape[0]
+        self.relative_degree = relative_degree
+        self.alpha = alpha
+
+        assert switching_policy_id == 1 or switching_policy_id == 2
+        self.switching_policy_id = switching_policy_id
+        assert isinstance(switching_policy_param, tuple)
+        assert len(switching_policy_param) == 2
+        self.switching_policy_param = switching_policy_param
+        self.solver_id = solver_id
+        self.solver_options = solver_options
+
         self.nu = g.shape[1]
         self.nx = x.shape[0]
-        self.choose_cbf_index = initial_cbf_index
-        
-        # define input ports:
-        # 0: state vector x input
-        # 1: nominal action u_d input
+        self.choose_switching_cbf_index = initial_cbf_index
+
         self.DeclareVectorInputPort("state", x.shape[0])
         self.DeclareVectorInputPort("nominal_action", self.nu)
-
-        # define the output port:
-        self.action_ouput_index = self.DeclareVectorOutputPort(
+        self.action_output_index = self.DeclareVectorOutputPort(
             "action", self.nu, self.calc_action
         ).get_index()
-        self.cbf_constraints = [
-            CbfConstraint(h=cbf, f=f, g=g, x=x, alpha=alpha)
-            for cbf in cbfs
-        ]
+
+        # If we have both normal CBFs and a switching CBF,
+        # then the first "num_normal_cbf_constraints" elements in the
+        # relative_degree and alpha list correspond to the normal CBFs,
+        # and the last one corresponds to the switching CBF.
+        self.normal_cbf_constraints = ([
+            CbfConstraint(
+                h=normal_cbfs[i],
+                f=f,
+                g=g,
+                x=x,
+                relative_degree=relative_degree[i],
+                alpha=alpha[i],
+            )
+            for i in range(num_normal_cbf_constraints)
+        ] if normal_cbfs is not None else None
+        )
+        self.switching_cbf_constraints = ([
+            CbfConstraint(
+                h=switching_cbfs[i],
+                f=f,
+                g=g,
+                x=x,
+                relative_degree=relative_degree[num_normal_cbf_constraints],
+                alpha=alpha[num_normal_cbf_constraints],
+            )
+            for i in range(switching_cbfs.shape[0])
+        ] if switching_cbfs is not None else None
+        )
 
     def action_output_port(self):
-        return self.get_output_port(self.action_ouput_index)
+        return self.get_output_port(self.action_output_index)
     
     def switching_policy_1(
         self,
-        x_val: np.ndarray
+        x_val: np.ndarray,
     ):
         """
         This function defines the first switching policy discussed in the paper.
         Before we state the switching conditions, we first define the an admissible
         control set U(x) as follows:
-        U(x) = {u| Au<= c}
-        this means that we hope every control action u is within the control limits
-        and also has a positive projection on the nominal action u_d.
+        U(x) = {u| Au<= c, and all the normal CBF constraints hold }
+        Since our verfication method also verifies the feasbility of the CBF-QP with
+        control limits and the normal CBF constraints, then this U(x) should not be
+        empty.
+        The parameter is a tuple (eta_l, eta_h) where:
+          eta_l: threshold for the first switching condition (can be positive for
+                 proactive switching before infeasibility).
+          eta_h: threshold for the second switching condition (from switching policy II),
+                 requiring the candidate CBF's HOCBF derivatives to be >= eta_h.
         Now, we give the switching conditions. The switching signal will switch from
         i to j if the following conditions are satisfied:
-
-         1. max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x) <= 0
-        In other words,
-            min_{u in U(x)} - (L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x)) >= 0
-        meaning that there is no admissible control that can make the CBF condition
-        of the current active CBF hold;
-
-         2. max_{u in U(x)} L_{g}h_j(x) u + L_f h_j(x) + alpha * h_j(x) >= η > 0
-        meaning that there exists an admissible control that can make the CBF condition
-        of the candidate CBF (with index j) hold.
-
-         3. h_j(x) >= 0
-        meaning that the candidate CBF is valid at the current state.
+         1. max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x) <= eta_l
+        meaning that the current switching CBF no longer has sufficient feasibility margin.
+         2. max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x) >= eta_h
+        meaning that the candidate CBF j is a more feasible HOCBF.
+         3. The current state is also in the region of HOCBF that we are switching to.
+        Of course, if there are no normal CBFs, then U(x) only contains the control
+        limits. Also, this switching policy function should not be called if there is 
+        no switching CBF condition in the QP.
         """
-        (eta_low, eta_high) = self.switching_threshold
-        # check the first switching condition
-        swtiching_condition_1 = False
-        optimal_cost = self._find_min_of_cbf_constriant(
-            cbf_index=self.choose_cbf_index,
+        print("current state:", x_val)
+        assert self.switching_cbfs is not None
+        (eta_l, eta_h) = self.switching_policy_param
+        switching = False
+        optimal_cost = self._find_max_of_cbf_constriant(
+            switching_cbf_index=self.choose_switching_cbf_index,
             x_val=x_val
         )
-        if optimal_cost >= -eta_low:
-            swtiching_condition_1 = True
-        
-        # check the second and third condition:
-        if swtiching_condition_1:
-            for i in range(self.cbfs.shape[0]):
-                if i == self.choose_cbf_index:
+        if optimal_cost >= -eta_l:
+            switching = True
+
+        if switching:
+            for i in range(self.switching_cbfs.shape[0]):
+                if i == self.choose_switching_cbf_index:
                     continue
-                cbf_i_val = self.cbfs[i].Evaluate(
-                    {self.x[i]: x_val[i] for i in range(x_val.size)}
-                )
-                optimal_cost = self._find_min_of_cbf_constriant(
-                    cbf_index=i,
+                optimal_cost = self._find_max_of_cbf_constriant(
+                    switching_cbf_index=i,
                     x_val=x_val
                 )
-                if optimal_cost <= -eta_high and cbf_i_val >= 0:
-                    self.choose_cbf_index = i
+                in_target_region = self._current_state_in_candidate_hocbf_region(
+                    switching_cbf_index=i,
+                    x_val=x_val,
+                    ref_val=0.0
+                )
+                if optimal_cost <= -eta_h and in_target_region:
+                    self.choose_switching_cbf_index = i
+                    break
 
     def switching_policy_2(
         self,
@@ -189,41 +280,62 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
     ):
         """
         This function defines the second switching policy discussed in the paper.
+        When the relative degree of the switching CBF is 1, then we use the switching
+        policy II in the ACC paper. Ohterwise we use the switching policy II in the
+        Journla extension.
+        
+        if reltive degree == 1:
         The switching signal will switch from i to j if the following conditions
         are met:
         1. h_i(x) <= \eta_low,
         meaning that we already reach the boundary of the current CBF;
         2. h_j(x) >= \eta_high,
         and eta_high - eta_low = constant eps > 0
-        meaning that the candidate CBF is valid at the current state.
-        3. max_{u in U(x)} L_{g}h_j(x) u + L_f h_j(x) + alpha * h_j(x) > 0
-        meaning that there exists an admissible control that can make the CBF
-        strictly hold.
+        
+        else if relative degree > 1:
+        The switching signal will switch from i to j if the following conditions
+        are met:
+        1. max {phi_i0(x), phi_i1(x),...phi_ir-1(x)} <= eta_l
+        meaning that we already reach the boundary of the current HOCBF region;
+        2. min {phi_j0(x), phi_j1(x),...phi_jr-1(x)} >= eta_h
+        and eta_high - eta_low = constant eps > 0
+        meaning that the candidate HOCBF has a further boundary.
+
+        Both the functions "_current_state_near_hocbf_bounary()"
+        and "_current_state_in_candidate_hocbf_region()" are adaptive to the
+        relative degree of switching CBFs. See doc strings of these functions.
         """
-        (eta_low, eta_high) = self.switching_threshold
+        print("Current State: ", x_val)
+        eta_low = self.switching_policy_param[0]
+        eta_high = self.switching_policy_param[1]
+        switching_condition_a = False
         
-        switching_condition_1 = False
-        # check the first switching condition
-        current_cbf_val = self.cbfs[self.choose_cbf_index].Evaluate(
-            {self.x[i]: x_val[i] for i in range(x_val.size)}
+        # check whether condition a is true:
+        near_hocbf_boundary = self._current_state_near_hocbf_boundary(
+            switching_cbf_index=self.choose_switching_cbf_index,
+            x_val=x_val,
+            ref_val=eta_low
         )
-        if current_cbf_val <= eta_low:
-            switching_condition_1 = True
-        
-        # check the second and third condition:
-        if switching_condition_1:
-            for i in range(self.cbfs.shape[0]):
-                if i == self.choose_cbf_index:
+        if near_hocbf_boundary:
+            switching_condition_a = True
+
+        # if a is true then we check condition b:
+        if switching_condition_a:
+            for i in range(self.switching_cbfs.shape[0]):
+                if i == self.choose_switching_cbf_index:
                     continue
-                cbf_i_val = self.cbfs[i].Evaluate(
-                    {self.x[i]: x_val[i] for i in range(x_val.size)}
-                )
-                optimal_cost = self._find_min_of_cbf_constriant(
-                    cbf_index=i,
+                optimal_cost = self._find_max_of_cbf_constriant(
+                        switching_cbf_index=i,
+                        x_val=x_val,
+                    )
+                in_candidate_hocbf_region = self._current_state_in_candidate_hocbf_region(
+                    switching_cbf_index=i,
                     x_val=x_val,
+                    ref_val=eta_high
                 )
-                if optimal_cost < 0 and cbf_i_val >= eta_high:
-                    self.choose_cbf_index = i
+                if  in_candidate_hocbf_region and optimal_cost < 0:
+                    self.choose_switching_cbf_index = i
+                    break
         
     def calc_action(
         self,
@@ -233,28 +345,32 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         x_val = self.get_input_port(0).Eval(context)
         u_d = self.get_input_port(1).Eval(context)
 
-
         if self.switching_policy_id == 1:
             self.switching_policy_1(
-                x_val=x_val,
+                x_val=x_val
             )
         elif self.switching_policy_id == 2:
             self.switching_policy_2(
-                x_val=x_val,
+                x_val=x_val
             )
         else:
             raise ValueError("switching_policy_id is invalid")
-        
-
         prog = solvers.MathematicalProgram()
         u = prog.NewContinuousVariables(self.nu, "u")
         cost = 0.5 * (u - u_d).dot(u - u_d)
         prog.AddQuadraticCost(e=cost, is_convex=True)
-        self.cbf_constraints[self.choose_cbf_index].add_to_prog(
+        self.switching_cbf_constraints[self.choose_switching_cbf_index].add_to_prog(
             prog=prog,
             x_val=x_val,
             u=u
         )
+        if self.normal_cbf_constraints is not None:
+            for normal_cbf_constraint in self.normal_cbf_constraints:
+                normal_cbf_constraint.add_to_prog(
+                    prog=prog,
+                    x_val=x_val,
+                    u=u
+                )
         (A, c) = self.control_limits
         prog.AddLinearConstraint(
             A=A, lb=np.array([-np.inf]*c.shape[0]), ub=c, vars=u
@@ -265,36 +381,45 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
             solver_options=self.solver_options
         )
         assert result.is_success()
-        safe_u = result.GetSolution(u)
-        output.set_value(safe_u)
+        optimal_u = result.GetSolution(u)
+        output.set_value(optimal_u)
     
-    def _find_min_of_cbf_constriant(
+    def _find_max_of_cbf_constriant(
         self,
-        cbf_index: int,
+        switching_cbf_index: int,
         x_val: np.ndarray,
     ) -> float:
         """
         This function finds the following value:
         max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x)
-        In other words,
-        min_{u in U(x)} -L_{g}h_i(x) u - L_f h_i(x) - alpha * h_i(x)
-        where U(x) = {u| Au <= c}
-        1. cbf_index: the index of the cbf h_i
-        2. x_val: the current state value
-        3. return the optimal value of the above maximization problem
-           (Not the optimal u, but the optimal value of the objective function)
+        where U(x) = {u| Au <= c and all the normal CBF constraints hold }
+        return the optimal value of the above maximization problem
+        (Not the optimal u, but the optimal value of the objective function)
+        This is equivalent to returning the minimum of the following cost:
+        - L_{g}h_i(x) u - L_f h_i(x) - alpha * h_i(x)
+        subject to the same constraints.
         """
         prog = solvers.MathematicalProgram()
         u = prog.NewContinuousVariables(self.nu, "u")
-        self.cbf_constraints[cbf_index].add_as_cost(
+        current_switching_constraint = self.switching_cbf_constraints[
+            switching_cbf_index
+        ]
+        current_switching_constraint.add_to_prog_as_cost(
             prog=prog,
             x_val=x_val,
             u=u
         )
         (A, c) = self.control_limits
         prog.AddLinearConstraint(
-            A=A, lb=np.full_like(c, -np.inf), ub=c, vars=u
+            A=A, lb=np.array([-np.inf]*c.shape[0]), ub=c, vars=u
         )
+        if self.normal_cbf_constraints is not None:
+            for normal_cbf_constraint in self.normal_cbf_constraints:
+                normal_cbf_constraint.add_to_prog(
+                    prog=prog,
+                    x_val=x_val,
+                    u=u
+                )
         result = solve_with_id(
             prog=prog,
             solver_id=self.solver_id,
@@ -304,5 +429,77 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         optimal_cost = result.get_optimal_cost()
         return optimal_cost
 
+    def _current_state_in_candidate_hocbf_region(
+        self,
+        switching_cbf_index: int,
+        x_val: np.ndarray,
+        ref_val: Optional[float]=0.0
+    ) -> bool:
+        """
+        This function checks whether the current state x_val is in the
+        region defined by the candidate HOCBF with index switching_cbf_index.
+        In other words, we check whether 
+        min {phi_j0(x), phi_j1(x),...phi_jr-1(x)} >= ref_val > 0,
+        where phi_jk(x) is the k-th lower lie derivative of h_j(x).
+        If the switching CBF's relative degree is 1, then this function only
+        checks 
+        phi_j0(x) = h_j(x) >= ref_val.
+        """
+        candidate_hocbf = self.switching_cbfs[switching_cbf_index]
+        relative_degree = self.relative_degree[-1]
+        alpha = self.alpha[-1]
+        phi_functions = lower_lie_derivatives(
+            poly=candidate_hocbf,
+            vector_field=self.f,
+            variables=self.x,
+            relative_degree=relative_degree,
+            betas=alpha
+        )
+        env = {self.x[i]: x_val[i] for i in range(x_val.size)}
+        candidate_hocbf_val = candidate_hocbf.Evaluate(env)
+        phi_functions = np.concatenate(
+            (np.array([candidate_hocbf]), phi_functions)
+        )
+        min_phi_value = np.inf
+        for each_item in phi_functions:
+            each_item_val = each_item.Evaluate(env)
+            if each_item_val < min_phi_value:
+                min_phi_value = each_item_val
+        return (min_phi_value >= 0.0) and (candidate_hocbf_val >= ref_val)
 
-
+    def _current_state_near_hocbf_boundary(
+        self,
+        switching_cbf_index: int,
+        x_val: np.ndarray,
+        ref_val: Optional[float]=0.0
+    ) -> bool:
+        """
+        This function checks whether the current state x_val is near the
+        boundary of the candidate HOCBF with index switching_cbf_index.
+        In other words, we check whether
+        max {phi_j0(x), phi_j1(x),...phi_jr-1(x)} <= ref_val,
+        where phi_jk(x) is the k-th lower lie derivative of h_j(x).
+        If the switching CBF's relative degree is 1, then this function only
+        checks 
+        phi_j0(x) = h_j(x) <= ref_val.
+        """
+        candidate_hocbf = self.switching_cbfs[switching_cbf_index]
+        relative_degree = self.relative_degree[-1]
+        alpha = self.alpha[-1]
+        phi_functions = lower_lie_derivatives(
+            poly=candidate_hocbf,
+            vector_field=self.f,
+            variables=self.x,
+            relative_degree=relative_degree,
+            betas=alpha
+        )
+        env = {self.x[i]: x_val[i] for i in range(x_val.size)}
+        phi_functions = np.concatenate(
+            (np.array([candidate_hocbf]), phi_functions)
+        )
+        max_phi_value = -np.inf
+        for each_item in phi_functions:
+            each_item_val = each_item.Evaluate(env)
+            if each_item_val > max_phi_value:
+                max_phi_value = each_item_val
+        return max_phi_value <= ref_val

@@ -122,11 +122,13 @@ def build_diagram_switching_policy_I(
             x=x,
             f=f,
             g=g,
-            cbfs=union_cbfs,
-            alpha=alpha,
+            normal_cbfs=None,
+            switching_cbfs=union_cbfs,
+            relative_degree=[1],
+            alpha=[[alpha]],
             control_limits=(A, c),
             switching_policy_id=1,
-            switching_threshold=(2.1, 2.3),
+            switching_policy_param=(2.1, 2.3),
             initial_cbf_index=init_cbf_index
         )
     )
@@ -200,11 +202,13 @@ def build_diagram_switching_policy_II(
             x=x,
             f=f,
             g=g,
-            cbfs=union_cbfs,
-            alpha=alpha,
+            normal_cbfs=None,
+            switching_cbfs=union_cbfs,
+            relative_degree=[1],
+            alpha=[[alpha]],
             control_limits=(A, c),
             switching_policy_id=2,
-            switching_threshold=(0.05, 0.15),
+            switching_policy_param=(0.05, 0.15),
             initial_cbf_index=init_cbf_index
         )
     )
@@ -481,7 +485,7 @@ def run_simulation(
     time_data = None
     for i in range(x0.shape[0]):
         total_states_init = x0[i, :]
-        duration = 100.0
+        duration = 20.0
         (state_data, 
         action_data, 
         time_data,
@@ -545,7 +549,6 @@ if __name__ == "__main__":
     run_simulation(case_name="switching_policy_II")
     run_simulation(case_name="bncbf")
     run_simulation(case_name="composite_cbf")
-
 
 
 

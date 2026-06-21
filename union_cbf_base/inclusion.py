@@ -1,49 +1,49 @@
-# """
-# This script develops the tools to check whether the region of the
-# union of CBFs X_c = {x | h₁(x) ≥ 0 or h₂(x) ≥ 0 or ... or hₘ(x) ≥ 0}
-# excludes the unsafe region X_u.
+"""
+This script develops the tools to check whether the region of the
+union of CBFs X_c = {x | h₁(x) ≥ 0 or h₂(x) ≥ 0 or ... or hₘ(x) ≥ 0}
+excludes the unsafe region X_u.
 
-# We provide two options:
-# 1. assume the unsafe region is presented by the intersection of
-#     0-super-level sets of a collection of polynomial functions.
-#     such that X_u = {x | l₁(x) ≤ 0, ..., lₙ(x) ≤ 0}.
-#     This assumption is valid when the unsafe region is: 
-#     (1) Polyhedral: Since any polyhedron can be presented by the
-#         intersection of a collection of half-spaces presented by
-#         hyperplanes. In this case,  each lᵢ(x) is a linear
-#         function.
-#     (2) Semialgebraic set: Since any semialgebraic set can be 
-#         presented by the intersection of a collection of 
-#         0-super-level sets of polynomial functions.
-# 2. assume the unsafe region is presented by a collection of
-#     unsafe points. As long as the number of unsafe points are
-#     sampled sufficiently. This assumption is valid for the following
-#     cases:
-#     (1) The actual unsafe region are presented by X_u = {x|f(x) ≤ 0}
-#         and f(x) has some complicated forms such as exponential,
-#         compositional, signed-distance or even NN.
-#     (2) The unsafe region is unknown but our sensor can provide some
-#         observed unsafe points from the unsafe region (e.g. Lidar).
-#     In such cases, we don't need to apply more l(x) polynomails to
-#     approximate the unsafe region boundary. We can directly use the 
-#     CBFs h(x) polynomials to excluded the unsafe points by evaluating
-#     each of the unsafe points and checking h(x) < 0.
+We provide two options:
+1. assume the unsafe region is presented by the intersection of
+    0-sub-level sets of a collection of polynomial functions.
+    such that X_u = {x | l₁(x) ≤ 0, ..., lₙ(x) ≤ 0}.
+    This assumption is valid when the unsafe region is: 
+    (1) Polyhedral: Since any polyhedron can be presented by the
+        intersection of a collection of half-spaces presented by
+        hyperplanes. In this case,  each lᵢ(x) is a linear
+        function.
+    (2) Semialgebraic set: Since any semialgebraic set can be 
+        presented by the intersection of a collection of 
+        0-super-level sets of polynomial functions.
+2. assume the unsafe region is presented by a collection of
+    unsafe points. As long as the number of unsafe points are
+    sampled sufficiently, this assumption is valid for the following
+    cases:
+    (1) The actual unsafe region are presented by X_u = {x|l(x) ≤ 0}
+        and f(x) has some complicated forms such as exponential,
+        compositional, signed-distance or even NN.
+    (2) The unsafe region is unknown but our sensor can provide some
+        observed unsafe points from the unsafe region (e.g. Lidar).
+    In such cases, we don't need to use extra polynomials l1(x)...ln(x)
+    approximate the unsafe region boundary. We can directly use the 
+    CBFs h(x) polynomials to excluded the unsafe points by evaluating
+    each of the unsafe points and checking h(x) < 0.
 
-# For assumption 1, we create SOS constraints based on P-satz to verify
-# that the CBF is negative over the unsafe region.
-# Assume we have a cbf h(x), we hope that: 
-# for all x in the unsafe region, h(x) < 0.
-# This is equivalent to verifying that the set:
-# {x | -p₁(x) ≥ 0, ..., -pₙ(x) ≥ 0, h(x) ≥ 0}
-# is empty. 
-# Using P-satz, we have the following SOS constraint:
-# -1 + (∑ᵢ sᵢ(x)pᵢ(x)) - s_{n+1}(x) * h(x) is SOS
-# where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
+For assumption 1, we create SOS constraints based on P-satz to verify
+that the CBF is negative over the unsafe region.
+Assume we have a cbf h(x), we hope that: 
+for all x in the unsafe region, h(x) < 0.
+This is equivalent to verifying that the set:
+{x | -p₁(x) ≥ 0, ..., -pₙ(x) ≥ 0, h(x) ≥ 0}
+is empty. 
+Using P-satz, we have the following SOS constraint:
+-1 + (∑ᵢ sᵢ(x)pᵢ(x)) - s_{n+1}(x) * h(x) is SOS
+where s₁(x), ..., s_{n+1}(x) are SOS polynomials.
 
-# For assumption 2, we simply evaluate all the cbf h(x) in the union over
-# all the unsafe points to check whether h(x) < 0 holds for all the unsafe
-# points.
-# """
+For assumption 2, we simply evaluate all the cbf h(x) in the union over
+all the unsafe points to check whether h(x) < 0 holds for all the unsafe
+points.
+"""
 
 import numpy as np
 from dataclasses import dataclass

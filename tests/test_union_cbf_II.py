@@ -2,20 +2,29 @@ import numpy as np
 import pydrake.symbolic as sym
 
 from union_cbf_base.utils import(
-    Degree,
     check_polynomial_arrays_equal
 )
 from union_cbf_base.non_empty_subset import Subset
-from union_cbf_base.union_cbf_II import(
-    CbfFeasibilityLagrangianDegrees,
-    UnionCbfII
-)
-from examples.single_integrator_2D import dynamics
+from union_cbf_base.union_cbf_II import UnionCbfII
+
 def test_all_subsets_to_verify():
     x = sym.MakeVectorContinuousVariable(2, "x")
-    plant = dynamics.SingleIntegrator2D()
-    (f, g) = plant.affine_dynamics(x)
-    control_limits = plant.control_limits() 
+    f = np.array([sym.Polynomial(0), sym.Polynomial(0)])
+    g = np.array(
+        [[sym.Polynomial(1), sym.Polynomial(0)], [sym.Polynomial(0), sym.Polynomial(1)]]
+    )
+    A = np.array(
+        [
+            [sym.Polynomial(1), sym.Polynomial(0)],
+            [sym.Polynomial(0), sym.Polynomial(1)],
+            [sym.Polynomial(-1), sym.Polynomial(0)],
+            [sym.Polynomial(0), sym.Polynomial(-1)],
+        ]
+    )
+    c = np.array(
+        [sym.Polynomial(1), sym.Polynomial(1), sym.Polynomial(1), sym.Polynomial(1)]
+    )
+    control_limits = (A, c)
 
     # 2 static CBFs:
     static_cbfs = np.array([
@@ -96,6 +105,8 @@ def test_compute_xi_lambda():
     c = np.array(
         [sym.Polynomial(1), sym.Polynomial(1), sym.Polynomial(1), sym.Polynomial(1)]
     )
+    control_limits = (A, c)
+
     cbfs = np.array(
         [
             sym.Polynomial((0.6) ** 2 - (x[0] - 0.5) ** 2 - (x[1] - 0) ** 2),

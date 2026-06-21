@@ -213,21 +213,24 @@ def verification_with_verif_II(
         x=x,
         f=f,
         g=g,
-        alpha=1.0,
+        alpha=[[1.0]],
+        relative_degree=[1],
         control_limits=(A, c),
     )
     lagrangian_degrees = CbfFeasibilityLagrangianDegrees(
-        cbf = DegreeII(x=2, y=2, c=0),
-        lambda_y=[DegreeII(x=2, y=0, c=0)]*num_controls,
-        xi_y=DegreeII(x=2, y=0, c=0)
+        phis=[[DegreeII(x=2, y=2, c=0)]],
+        lambda_y=[DegreeII(x=2, y=0, c=0)] * num_controls,
+        xi_y=DegreeII(x=2, y=0, c=0),
+        state_eq=None,
     )
-    (verfication_flag, _) = union_object.verification_feasibility_condition_II(
-        union_cbfs=cbfs,
+    verfication_flag = union_object.verification_feasibility_condition_II(
+        switching_cbfs=cbfs,
+        static_cbfs=None,
         lagrangian_degrees=lagrangian_degrees,
         eta=1e-4,
         eps=1e-4,
         show_output=True,
-        show_verification_time=True,
+        show_computation_time=True,
     )
     assert verfication_flag == True
     print("The verification of Verif-II for sparse alignment is successful!")
@@ -254,21 +257,27 @@ def verification_with_verif_I(
         x=x,
         f=f,
         g=g,
-        alpha=1.0,
+        alpha=[[1.0]],
+        relative_degree=[1],
         control_limits=(A, c),
     )
-    lagrangian_degrees = SubsetGeneralLagrangianDegrees(
+    general_degrees = SubsetGeneralLagrangianDegrees(
         num_control_inputs=num_controls,
-        cbfs_lagrangian_x_degree=2,
-        cbfs_lagrangian_y_degree=2,
+        activated_lagrangian_x_degree=2,
+        activated_lagrangian_y_degree=2,
+        deactivated_lagrangian_x_degree=2,
+        deactivated_lagrangian_y_degree=2,
         lambda_lagrangian_x_degree=2,
         lambda_lagrangian_y_degree=0,
         xi_lagrangian_x_degree=2,
-        xi_lagrangian_y_degree=0
+        xi_lagrangian_y_degree=0,
+        state_eq_lagrangian_x_degree=None,
+        state_eq_lagrangian_y_degree=None,
     )
     (verfication_flag, _) = union_object.verification_feasibility_condition_I(
-        union_cbfs=cbfs,
-        lagrangian_degrees=lagrangian_degrees,
+        switching_cbfs=cbfs,
+        static_cbfs=None,
+        general_degrees=general_degrees,
         eta=1e-4,
         eps=1e-4,
         show_output=True,
@@ -278,13 +287,12 @@ def verification_with_verif_I(
     print("The verification of Verif-I for dense alignment is successful!")
 
 if __name__ == "__main__":
-    plot_examples()
-    # verification_with_verif_I(
-    #     # cbf_case="sparse",
-    #     cbf_case="dense",
-    # )
-    # verification_with_verif_II(
-    #     # cbf_case="sparse",
-    #     cbf_case="dense",
-    # )
-
+    plot_examples() 
+    verification_with_verif_I(
+        # cbf_case="sparse",
+        cbf_case="dense",
+    )
+    verification_with_verif_II(
+        # cbf_case="sparse",
+        cbf_case="dense",
+    )

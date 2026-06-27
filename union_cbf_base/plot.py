@@ -1,25 +1,33 @@
 """
-This file defines the plot functions.
+This file defines the plot functions. We first define some basic blocks,
+then we use these blocks to define the following functions:
+1. plot_cbf_boundaries: plot the boundaries of the normal cbfs and
+    switching cbfs.
+2. plot_environement: plot the environment, including unsafe regions defined
+    by union cbfs and intersection cbfs.
+3. plot_simulation_results: plot the simulated trajectories.
 """
+from __future__ import annotations
+
 import numpy as np
 import matplotlib.axes
-import matplotlib.contour
 import matplotlib.pyplot as plt
 import pydrake.symbolic as sym
-from typing import Tuple, Union, Optional, List
+from typing import List, Tuple, Union, Optional
 
-# basic blocks
+# basic plotting blocks
 def plot_2D_function(
     ax: matplotlib.axes.Axes,
     f: Union[sym.Polynomial, np.ndarray],
     x: Optional[np.ndarray],
     x_range: Optional[Tuple[float, float]],
     y_range: Optional[Tuple[float, float]],
-    sampling_rate: Optional[int],
     with_contour: bool,
     line_color: str='black',
+    color: Optional[str]=None,
     contour_line_style='-',
     contour_line_width: float=3,
+    sampling_rate: Optional[int]=100,
     with_region_filled: bool=False,
     region_color: Optional[str]="green",
     alpha: Optional[float]=0.5,
@@ -31,6 +39,10 @@ def plot_2D_function(
     array of values of f(x) over a grid: meaning that f[0] = grid_x,
     f[1] = grid_y, f[2] = gird_f_values.
     """
+    if color is not None:
+        line_color = color
+        region_color = color
+
     if isinstance(f, sym.Polynomial):
         assert x is not None
         assert x_range is not None
@@ -84,9 +96,9 @@ def plot_intersection_region(
     x: np.ndarray,
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
-    sampling_rate: int,
-    color: str='grey',
-    alpha: float=1.0
+    sampling_rate: Optional[int]=100,
+    color: str='black',
+    alpha: float=0.5
 ):
     """
     In this function, we plot the intersection of p_i(x) >= 0 for all i.
@@ -123,9 +135,9 @@ def plot_union_region(
     x: np.ndarray,
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
-    sampling_rate: int,
-    color: str,
-    alpha: float
+    sampling_rate: int = 100,
+    color: str='black',
+    alpha: float=0.5
 ):
     """
     In this function, we plot the union of p_i(x) >= 0 for all i.
@@ -195,7 +207,125 @@ def plot_compatible_region(
 
     return compatible_region
 
-# plotting functions for union of CBFs
+def plot_union_switching_intersect_normal_region(
+    ax: matplotlib.axes.Axes,
+    switching_cbfs: np.ndarray,
+    normal_cbfs: np.ndarray,
+    x: np.ndarray,
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+    sampling_rate: int = 100,
+    color: str = 'green',
+    alpha: float = 0.3
+):
+    """
+    Plot {x : max_k h_sw_k(x) >= 0 and min_i h_n_i(x) >= 0}.
+    """
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(x_range[0], x_range[1], sampling_rate),
+        np.linspace(y_range[0], y_range[1], sampling_rate)
+    )
+    grid_x_val = np.concatenate(
+        [grid_x.reshape(1, -1), grid_y.reshape(1, -1)],
+        axis=0
+    )
+
+    switching_values = np.array([
+        cbf.EvaluateIndeterminates(x, grid_x_val).reshape(grid_x.shape)
+        for cbf in switching_cbfs
+    ])
+    normal_values = np.array([
+        cbf.EvaluateIndeterminates(x, grid_x_val).reshape(grid_x.shape)
+        for cbf in normal_cbfs
+    ])
+    combined = np.minimum(
+        np.max(switching_values, axis=0),
+        np.min(normal_values, axis=0)
+    )
+
+    region = ax.contourf(
+        grid_x,
+        grid_y,
+        combined,
+        levels=[0, np.inf],
+        colors=color,
+        alpha=alpha
+    )
+    return region
+
+def plot_cbf_boundaries(
+    ax: plt.Axes,
+    x_states: np.ndarray,
+    static_cbfs: Optional[np.ndarray],
+    switching_cbfs: Optional[np.ndarray],
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float]
+):
+    if static_cbfs is not None:
+        for h_i in static_cbfs:
+            plot_2D_function(
+                ax=ax,
+                f=h_i,
+                x=x_states[0:2],
+                x_range=x_range,
+                y_range=y_range,
+                with_contour=True,
+                color="black",
+                contour_line_style="-",
+                contour_line_width=2,
+                sampling_rate=500
+            )
+    if switching_cbfs is not None:
+        for h_i in switching_cbfs:
+            plot_2D_function(
+                ax=ax,
+                f=h_i,
+                x=x_states[0:2],
+                x_range=x_range,
+                y_range=y_range,
+                with_contour=True,
+                color="black",
+                contour_line_style="--",
+                contour_line_width=2,
+                sampling_rate=500
+            )
+
+def plot_environement(
+    ax: plt.Axes,
+    x_states: np.ndarray,
+    union_unsafe_regions: Optional[List[np.ndarray]],
+    intersection_unsafe_regions: Optional[List[np.ndarray]],
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+):
+    if union_unsafe_regions is not None:
+        assert isinstance(union_unsafe_regions, List)
+        for each_union_unsafe_region in union_unsafe_regions:
+            plot_union_region(
+                ax=ax,
+                p=each_union_unsafe_region,
+                x=x_states[0:2],
+                x_range=x_range,
+                y_range=y_range,
+                sampling_rate=500,
+                color="black",
+                alpha=0.5
+            )
+    if intersection_unsafe_regions is not None:
+        assert isinstance(intersection_unsafe_regions, List)
+        for each_intersection_unsafe_region in intersection_unsafe_regions:
+            plot_intersection_region(
+                ax=ax,
+                p=each_intersection_unsafe_region,
+                x=x_states[0:2],
+                x_range=x_range,
+                y_range=y_range,
+                sampling_rate=500,
+                color="grey",
+                alpha=1.0
+            )
+
+# Backward-compatible plotting functions for older examples.
 def plot_unsafe_region(
     ax: plt.Axes,
     x_states: np.ndarray,
@@ -284,5 +414,3 @@ def plot_signal_time_records(
         color=color,
         linestyle=linestyle
     )
-
-

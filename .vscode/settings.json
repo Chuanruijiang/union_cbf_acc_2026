@@ -17,5 +17,7 @@
         "PYTHONPATH": "${env:PYTHONPATH};./union_cbfs_acc_2026"
     },
     "jupyter.notebookFileRoot": "./union_cbfs_acc_2026",
-    "githubPullRequests.codingAgent.uiIntegration": true
+    "githubPullRequests.codingAgent.uiIntegration": true,
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }

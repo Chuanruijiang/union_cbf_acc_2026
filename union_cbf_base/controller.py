@@ -133,7 +133,7 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         x: np.ndarray,
         f: np.ndarray,
         g: np.ndarray,
-        normal_cbfs: Optional[np.ndarray],
+        static_cbfs: Optional[np.ndarray],
         switching_cbfs: Optional[np.ndarray],
         relative_degree: List[int],
         alpha: List[List[float]],
@@ -148,19 +148,19 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         self.x = x
         self.f = f
         self.g = g
-        self.normal_cbfs = normal_cbfs
+        self.static_cbfs = static_cbfs
         self.switching_cbfs = switching_cbfs
         self.control_limits = control_limits
-        assert not (normal_cbfs is None and switching_cbfs is None)
+        assert not (static_cbfs is None and switching_cbfs is None)
 
-        num_normal_cbf_constraints = (
-            0 if normal_cbfs is None else normal_cbfs.shape[0]
+        num_static_cbf_constraints = (
+            0 if static_cbfs is None else static_cbfs.shape[0]
         )
         num_switching_cbf_constraints = (
             0 if switching_cbfs is None else 1
         )
         num_cbf_constraints = (
-            num_normal_cbf_constraints + num_switching_cbf_constraints
+            num_static_cbf_constraints + num_switching_cbf_constraints
         )
         assert len(alpha) == num_cbf_constraints
         assert len(relative_degree) == num_cbf_constraints
@@ -186,21 +186,21 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
             "action", self.nu, self.calc_action
         ).get_index()
 
-        # If we have both normal CBFs and a switching CBF,
-        # then the first "num_normal_cbf_constraints" elements in the
-        # relative_degree and alpha list correspond to the normal CBFs,
+        # If we have both static CBFs and a switching CBF,
+        # then the first "num_static_cbf_constraints" elements in the
+        # relative_degree and alpha list correspond to the static CBFs,
         # and the last one corresponds to the switching CBF.
-        self.normal_cbf_constraints = ([
+        self.static_cbf_constraints = ([
             CbfConstraint(
-                h=normal_cbfs[i],
+                h=static_cbfs[i],
                 f=f,
                 g=g,
                 x=x,
                 relative_degree=relative_degree[i],
                 alpha=alpha[i],
             )
-            for i in range(num_normal_cbf_constraints)
-        ] if normal_cbfs is not None else None
+            for i in range(num_static_cbf_constraints)
+        ] if static_cbfs is not None else None
         )
         self.switching_cbf_constraints = ([
             CbfConstraint(
@@ -208,8 +208,8 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
                 f=f,
                 g=g,
                 x=x,
-                relative_degree=relative_degree[num_normal_cbf_constraints],
-                alpha=alpha[num_normal_cbf_constraints],
+                relative_degree=relative_degree[num_static_cbf_constraints],
+                alpha=alpha[num_static_cbf_constraints],
             )
             for i in range(switching_cbfs.shape[0])
         ] if switching_cbfs is not None else None
@@ -364,9 +364,9 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
             x_val=x_val,
             u=u
         )
-        if self.normal_cbf_constraints is not None:
-            for normal_cbf_constraint in self.normal_cbf_constraints:
-                normal_cbf_constraint.add_to_prog(
+        if self.static_cbf_constraints is not None:
+            for static_cbf_constraint in self.static_cbf_constraints:
+                static_cbf_constraint.add_to_prog(
                     prog=prog,
                     x_val=x_val,
                     u=u
@@ -392,7 +392,7 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         """
         This function finds the following value:
         max_{u in U(x)} L_{g}h_i(x) u + L_f h_i(x) + alpha * h_i(x)
-        where U(x) = {u| Au <= c and all the normal CBF constraints hold }
+        where U(x) = {u| Au <= c and all the static CBF constraints hold }
         return the optimal value of the above maximization problem
         (Not the optimal u, but the optimal value of the objective function)
         This is equivalent to returning the minimum of the following cost:
@@ -413,9 +413,9 @@ class SwitchingCBFController(drake_sys_frame.LeafSystem):
         prog.AddLinearConstraint(
             A=A, lb=np.array([-np.inf]*c.shape[0]), ub=c, vars=u
         )
-        if self.normal_cbf_constraints is not None:
-            for normal_cbf_constraint in self.normal_cbf_constraints:
-                normal_cbf_constraint.add_to_prog(
+        if self.static_cbf_constraints is not None:
+            for static_cbf_constraint in self.static_cbf_constraints:
+                static_cbf_constraint.add_to_prog(
                     prog=prog,
                     x_val=x_val,
                     u=u
